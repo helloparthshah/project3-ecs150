@@ -25,6 +25,11 @@
 #define RVCOS_TIMEOUT_INFINITE                      ((TTick)0)
 #define RVCOS_TIMEOUT_IMMEDIATE                     ((TTick)-1)
 
+#define RVCOS_MEMORY_POOL_ID_SYSTEM                 ((TMemoryPoolID)0)
+#define RVCOS_MEMORY_POOL_ID_INVALID                ((TMemoryPoolID)-1)
+
+#define RVCOS_MUTEX_ID_INVALID                      ((TMutexID)-1)
+
 typedef uint32_t TStatus, *TStatusRef;
 typedef uint32_t TTick, *TTickRef;
 typedef int32_t  TThreadReturn, *TThreadReturnRef;
@@ -33,6 +38,8 @@ typedef uint32_t TThreadID, *TThreadIDRef;
 typedef uint32_t TThreadPriority, *TThreadPriorityRef;
 typedef uint32_t TThreadState, *TThreadStateRef;
 typedef char     TTextCharacter, *TTextCharacterRef;
+typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
+typedef uint32_t TMutexID, *TMutexIDRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
 
@@ -45,10 +52,10 @@ typedef struct{
     uint32_t DButton2:1;
     uint32_t DButton3:1;
     uint32_t DButton4:1;
-    uint32_t DReserved:28;
+    uint32_t DReserved:24;
 } SControllerStatus, *SControllerStatusRef;
 
-TStatus RVCInitalize(uint32_t *gp);
+TStatus RVCInitialize(uint32_t *gp);
 
 TStatus RVCTickMS(uint32_t *tickmsref);
 TStatus RVCTickCount(TTickRef tickref);
@@ -57,10 +64,24 @@ TStatus RVCThreadCreate(TThreadEntry entry, void *param, TMemorySize memsize, TT
 TStatus RVCThreadDelete(TThreadID thread);
 TStatus RVCThreadActivate(TThreadID thread);
 TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval);
-TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref);
+TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref, TTick timeout);
 TStatus RVCThreadID(TThreadIDRef threadref);
 TStatus RVCThreadState(TThreadID thread, TThreadStateRef stateref);
 TStatus RVCThreadSleep(TTick tick);
+
+#define RVCMemoryAllocate(size,pointer)             RVCMemoryPoolAllocate(RVCOS_MEMORY_POOL_ID_SYSTEM, (size), (pointer))
+#define RVCMemoryDeallocate(pointer)                RVCMemoryPoolDeallocate(RVCOS_MEMORY_POOL_ID_SYSTEM, (pointer))
+TStatus RVCMemoryPoolCreate(void *base, TMemorySize size, TMemoryPoolIDRef memoryref);
+TStatus RVCMemoryPoolDelete(TMemoryPoolID memory);
+TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft);
+TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size, void **pointer);
+TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer);
+
+TStatus RVCMutexCreate(TMutexIDRef mutexref);
+TStatus RVCMutexDelete(TMutexID mutex);
+TStatus RVCMutexQuery(TMutexID mutex, TThreadIDRef ownerref);
+TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout);
+TStatus RVCMutexRelease(TMutexID mutex);
 
 TStatus RVCWriteText(const TTextCharacter *buffer, TMemorySize writesize);
 TStatus RVCReadController(SControllerStatusRef statusref);

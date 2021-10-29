@@ -41,7 +41,7 @@ TThreadReturn LowPriorityThread(void *param){
     }
     WriteString("Valid State\n");
     RVCThreadActivate(HighThreadID);
-    RVCThreadWait(HighThreadID,&ReturnValue);
+    RVCThreadWait(HighThreadID,&ReturnValue,RVCOS_TIMEOUT_INFINITE);
     WriteString("Low Awake:     ");
     if(EXPECTED_RETURN != ReturnValue){
         WriteString("Invalid Return\n");
@@ -118,7 +118,7 @@ int main(){
         return 1;
     }
     WriteString("Valid State\n");
-    RVCThreadWait(LowThreadID,&ReturnValue);
+    RVCThreadWait(LowThreadID,&ReturnValue,RVCOS_TIMEOUT_INFINITE);
     
     WriteString("Checking Low:  ");
     if(EXPECTED_RETURN != ReturnValue){

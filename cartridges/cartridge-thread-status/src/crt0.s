@@ -14,7 +14,7 @@ _start:
     jal     ra, init
     nop
     mv      a0, gp
-    jal     ra, RVCInitalize
+    jal     ra, RVCInitialize
     nop
     jal     ra, main
     lw      ra,0(sp)
@@ -23,11 +23,11 @@ _start:
     .cfi_endproc
 
 .section .text, "ax"
-.global RVCInitalize, RVCThreadCreate, RVCThreadDelete, RVCThreadActivate, RVCThreadTerminate 
+.global RVCInitialize, RVCThreadCreate, RVCThreadDelete, RVCThreadActivate, RVCThreadTerminate 
 .global RVCThreadWait, RVCThreadID, RVCThreadState, RVCThreadSleep, RVCTickMS, RVCTickCount
 .global RVCWriteText, RVCReadController
 
-RVCInitalize:
+RVCInitialize:
     li      a5,0
     ecall
     ret

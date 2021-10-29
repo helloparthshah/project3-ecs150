@@ -12,11 +12,11 @@ _start:
     .cfi_endproc
 
 .section .text, "ax"
-.global RVCInitalize, RVCThreadCreate, RVCThreadDelete, RVCThreadActivate, RVCThreadTerminate 
+.global RVCInitialize, RVCThreadCreate, RVCThreadDelete, RVCThreadActivate, RVCThreadTerminate 
 .global RVCThreadWait, RVCThreadID, RVCThreadState, RVCThreadSleep, RVCTickMS, RVCTickCount
 .global RVCWriteText, RVCReadController
 
-RVCInitalize:
+RVCInitialize:
     li      a5,0
     ecall
     ret

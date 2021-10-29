@@ -13,7 +13,7 @@ MEMORY
     /* riscv-console virt machine FLASH */
     FLASH (rx)  : ORIGIN = 0x20000000, LENGTH = 16M
     /* riscv-console virt machine RAM */
-    RAM (rwx)   : ORIGIN = 0x70200000, LENGTH = 14M
+    RAM (rwx)   : ORIGIN = 0x70E00000, LENGTH = 2M
     
 }
 ENTRY(_start)
