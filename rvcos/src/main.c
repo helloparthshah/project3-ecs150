@@ -132,6 +132,7 @@ void remove_prio(TThreadID tid) {
   }
 }
 
+
 void dec_tick() {
   // Looping through the threads to check which are sleeping
   for (int i = 1; i < id_count; i++) {
@@ -293,7 +294,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
 
   // Removing the thread from deque
   remove_prio(thread);
-
+  
   scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
@@ -342,7 +343,7 @@ TStatus RVCThreadSleep(TTick tick) {
     tcb[sid].is_sleeping = 1;
     // Removing from the deque
     remove_prio(sid);
-    // Calling scheduler
+        // Calling scheduler
     scheduler();
   }
   return RVCOS_STATUS_SUCCESS;
@@ -458,6 +459,26 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
     return RVCWriteText(p0, a1);
   } else if (code == 12) {
     return RVCReadController((SControllerStatusRef)p0);
+  } else if (code == 13) {
+    return RVCMemoryPoolCreate(p0, a1, a2);
+  } else if (code == 14) {
+    return RVCMemoryPoolDelete(a0);
+  } else if (code == 15) {
+    return RVCMemoryPoolQuery(a0, p1);
+  } else if (code == 16) {
+    return RVCMemoryPoolAllocate(a0, p1, p2);
+  } else if (code == 17) {
+    return RVCMemoryPoolDeallocate(a0, p1);
+  } else if (code == 18) {
+    return RVCMutexCreate(p0);
+  } else if (code == 19) {
+    return RVCMutexDelete(a0);
+  } else if (code == 20) {
+    return RVCMutexQuery(a0, p1);
+  } else if (code == 21) {
+    return RVCMutexAcquire(a0, p1);
+  } else if (code == 22) {
+    return RVCMutexRelease(a0);
   }
   return RVCOS_STATUS_FAILURE;
 }
