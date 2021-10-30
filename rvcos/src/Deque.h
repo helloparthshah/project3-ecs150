@@ -27,13 +27,13 @@ typedef struct {
   Deque *waited_by;
   uint32_t return_val;
   int sleep_for;
-  int is_sleeping;
+  int wait_timeout;
 } Thread;
 
 Deque *dmalloc();
 
 void print(volatile Deque *d, uint32_t line);
-
+uint32_t size(volatile Deque *d);
 void push_front(volatile Deque *d, TThreadID v);
 void push_back(volatile Deque *d, TThreadID v);
 

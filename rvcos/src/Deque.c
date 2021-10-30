@@ -132,3 +132,15 @@ void print(volatile Deque *d, uint32_t line) {
   }
   free(n);
 }
+
+// Function to return size of deque
+uint32_t size(volatile Deque *d) {
+  uint32_t s = 0;
+  struct Node *n = d->head;
+  while (n != NULL) {
+    s++;
+    n = n->next;
+  }
+  free(n);
+  return s;
+}

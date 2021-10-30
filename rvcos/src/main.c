@@ -92,6 +92,8 @@ uint32_t *initialize_stack(uint32_t *sp, TThreadEntry fun, void *param,
 volatile Deque *high;
 volatile Deque *norm;
 volatile Deque *low;
+volatile Deque *threads_waiting;
+volatile Deque *threads_sleeping;
 volatile Thread tcb[256];
 volatile int id_count = 1;
 volatile int curr_running = 1;
@@ -134,8 +136,31 @@ void remove_prio(TThreadID tid) {
 
 void dec_tick() {
   // Looping through the threads to check which are sleeping
-  for (int i = 1; i < id_count; i++) {
-    if (tcb[i].is_sleeping == 1) {
+  // Loop through threads_sleeping and decrement sleep_for
+  struct Node *n = threads_sleeping->head;
+  while (n != NULL) {
+    if (tcb[n->val].sleep_for == 0) {
+      removeT(threads_sleeping, n->val);
+      tcb[n->val].state = RVCOS_THREAD_STATE_READY;
+      push_back_prio(n->val);
+    }
+    tcb[n->val].sleep_for--;
+    n = n->next;
+  }
+
+  n = threads_waiting->head;
+  while (n != NULL) {
+    if (tcb[n->val].wait_timeout == 0) {
+      removeT(threads_waiting, n->val);
+      tcb[n->val].state = RVCOS_THREAD_STATE_READY;
+      push_back_prio(n->val);
+    }
+    tcb[n->val].wait_timeout--;
+    n = n->next;
+  }
+  free(n);
+  /* for (int i = 1; i < id_count; i++) {
+    if (tcb[i].sleep_for > 0) {
       // If thread has finished sleeping
       if (tcb[i].sleep_for == 0) {
         // Stop sleeping and add back to queue
@@ -146,7 +171,18 @@ void dec_tick() {
       // Decrement sleep for
       tcb[i].sleep_for--;
     }
-  }
+    if (tcb[i].sleep_for > 0) {
+      // If thread has finished sleeping
+      if (tcb[i].sleep_for == 0) {
+        // Stop sleeping and add back to queue
+        tcb[i].is_sleeping = 0;
+        tcb[i].state = RVCOS_THREAD_STATE_READY;
+        push_back_prio(i);
+      }
+      // Decrement sleep for
+      tcb[i].sleep_for--;
+    }
+  } */
 }
 
 void scheduler() {
@@ -193,6 +229,8 @@ TStatus RVCInitialize(uint32_t *gp) {
   high = dmalloc();
   norm = dmalloc();
   low = dmalloc();
+  threads_sleeping = dmalloc();
+  threads_waiting = dmalloc();
   if (high == NULL || norm == NULL || low == NULL)
     return RVCOS_STATUS_FAILURE;
   // Storing the cartridge gp
@@ -203,13 +241,13 @@ TStatus RVCInitialize(uint32_t *gp) {
   tcb[0].id = 0;
   tcb[0].priority = 0;
   tcb[0].memsize = 1024;
-  tcb[0].is_sleeping = 0;
+  tcb[0].sleep_for = -1;
   tcb[0].state = RVCOS_THREAD_STATE_READY;
   // Create main thread
   tcb[1].id = 1;
   tcb[1].priority = RVCOS_THREAD_PRIORITY_NORMAL;
   tcb[1].state = RVCOS_THREAD_STATE_RUNNING;
-  tcb[1].is_sleeping = 0;
+  tcb[1].sleep_for = -1;
   // Make tp point to main
   curr_running = 1;
   set_tp(1);
@@ -245,7 +283,7 @@ TStatus RVCThreadCreate(TThreadEntry entry, void *param, TMemorySize memsize,
   tcb[id_count].param = param;
   tcb[id_count].memsize = memsize;
   tcb[id_count].state = RVCOS_THREAD_STATE_CREATED;
-  tcb[id_count].is_sleeping = 0;
+  tcb[id_count].sleep_for = -1;
   id_count++;
   return RVCOS_STATUS_SUCCESS;
 }
@@ -287,8 +325,11 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
   if (tcb[thread].waited_by != NULL)
     while (isEmpty(tcb[thread].waited_by) == 0) {
       uint32_t wid = pop_front(tcb[thread].waited_by);
-      tcb[wid].state = RVCOS_THREAD_STATE_READY;
-      push_back_prio(wid);
+      if (tcb[wid].state == RVCOS_THREAD_STATE_WAITING) {
+        tcb[wid].state = RVCOS_THREAD_STATE_READY;
+        removeT(threads_waiting, wid);
+        push_back_prio(wid);
+      }
     }
 
   // Removing the thread from deque
@@ -304,6 +345,17 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
     return RVCOS_STATUS_ERROR_INVALID_ID;
   if (returnref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+
+  // If the thread is already dead then return the return value
+  if (tcb[thread].state == RVCOS_THREAD_STATE_DEAD) {
+    *returnref = tcb[thread].return_val;
+    return RVCOS_STATUS_SUCCESS;
+  }
+
+  if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
+    scheduler();
+    return RVCOS_STATUS_SUCCESS;
+  }
   TThreadID wid = curr_running;
   // Setting state to waiting
   tcb[wid].state = RVCOS_THREAD_STATE_WAITING;
@@ -317,6 +369,12 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
   if (tcb[thread].waited_by == NULL)
     return RVCOS_STATUS_FAILURE;
   push_back(tcb[thread].waited_by, wid);
+
+  // Setting the timeout
+  if (timeout != RVCOS_TIMEOUT_INFINITE) {
+    tcb[wid].wait_timeout = timeout;
+    push_back(threads_waiting, wid);
+  }
 
   // Scheduling till it's dead
   while (tcb[thread].state != RVCOS_THREAD_STATE_DEAD) {
@@ -339,7 +397,9 @@ TStatus RVCThreadSleep(TTick tick) {
     // Setting state to waiting
     tcb[sid].state = RVCOS_THREAD_STATE_WAITING;
     tcb[sid].sleep_for = tick;
-    tcb[sid].is_sleeping = 1;
+    // tcb[sid].is_sleeping = 1;
+    // Adding to the sleeping queue
+    push_back(threads_sleeping, sid);
     // Removing from the deque
     remove_prio(sid);
     // Calling scheduler
@@ -407,29 +467,107 @@ TStatus RVCMutexRelease(TMutexID mutex) {
 }
 
 volatile int cursor = 0;
-TStatus RVCWriteText(const TTextCharacter *buffer, TMemorySize writesize) {
-  if (buffer == NULL)
-    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  // Looping through the buffer
-  for (uint32_t i = 0; i < writesize; i++) {
+/*
+Normal 0
+Esc 1
+[ 2
+digit1 3
+; 4
+digit2 5
+digit3 6
+ */
+volatile int char_mode = 0;
+
+char current_char_list[256];
+int current_char_list_index = 0;
+
+void write_to_videomem() {
+  for (uint32_t i = 0; i <= current_char_list_index; i++) {
+    char c = current_char_list[i];
     // if backspace move cursor back
-    if (buffer[i] == '\b') {
+    if (c == '\b') {
       if (cursor > 0)
         VIDEO_MEMORY[--cursor] = ' ';
-    } else if (buffer[i] == '\n') {
+    } else if (c == '\n') {
       // Jump to nextline
       cursor += 0x40;
       // Move back to start of the line
       cursor -= cursor % 0x40;
     } else {
       // else printing the charactor
-      VIDEO_MEMORY[cursor++] = buffer[i];
+      VIDEO_MEMORY[cursor++] = c;
     }
     if ((cursor) / 0x40 >= 36) {
       // Shifting everything up when reach end of screen
       memcpy((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
       cursor -= 0x40;
     }
+  }
+}
+
+// Outputs charactor based on char_mode
+void output_char(char c) {
+  if (c == '\x1B') {
+    char_mode = 1;
+  }
+  if (c == '[') {
+    if (char_mode == 1)
+      char_mode = 2;
+    else
+      char_mode = 0;
+  }
+  if ((c >= 'A' && c <= 'D') || c == 'H') {
+    if (char_mode == 2) {
+      if (c == 'A') {
+        cursor -= 0x40;
+      } else if (c == 'B') {
+        cursor += 0x40;
+      } else if (c == 'C') {
+        cursor += 1;
+      } else if (c == 'D') {
+        cursor -= 1;
+      } else if (c == 'H') {
+        cursor = 0;
+      }
+      char_mode = 0;
+      current_char_list_index = 0;
+    }
+    if (char_mode == 5 && c == 'H') {
+    }
+  }
+  if (c >= '0' && c <= '9') {
+    if (char_mode == 2 || char_mode == 3) {
+      if (char_mode == 3 && current_char_list_index == 1 &&
+          current_char_list[0] == '2' && c == 'J') {
+        // Clear the screen
+        memset((void *)VIDEO_MEMORY, 0, 0x40 * 36);
+      }
+      current_char_list[current_char_list_index++] = c;
+      char_mode = 3;
+    } else if (char_mode == 4 || char_mode == 5) {
+      current_char_list[current_char_list_index++] = c;
+      char_mode = 5;
+    } else {
+      char_mode = 0;
+      current_char_list_index = 0;
+    }
+  }
+  if (c == ';') {
+    if (char_mode == 3) {
+      current_char_list[current_char_list_index++] = ';';
+      char_mode = 4;
+    } else {
+      char_mode = 0;
+      current_char_list_index = 0;
+    }
+  }
+}
+
+TStatus RVCWriteText(const TTextCharacter *buffer, TMemorySize writesize) {
+  if (buffer == NULL)
+    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+  // Looping through the buffer
+  for (uint32_t i = 0; i < writesize; i++) {
   }
   return RVCOS_STATUS_SUCCESS;
 }
@@ -501,13 +639,13 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
   } else if (code == 12) {
     return RVCReadController((SControllerStatusRef)p0);
   } else if (code == 13) {
-    return RVCMemoryPoolCreate(p0, a1, a2);
+    return RVCMemoryPoolCreate(p0, a1, p2);
   } else if (code == 14) {
     return RVCMemoryPoolDelete(a0);
   } else if (code == 15) {
     return RVCMemoryPoolQuery(a0, p1);
   } else if (code == 16) {
-    return RVCMemoryPoolAllocate(a0, p1, p2);
+    return RVCMemoryPoolAllocate(a0, a1, p2);
   } else if (code == 17) {
     return RVCMemoryPoolDeallocate(a0, p1);
   } else if (code == 18) {
@@ -517,7 +655,7 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
   } else if (code == 20) {
     return RVCMutexQuery(a0, p1);
   } else if (code == 21) {
-    return RVCMutexAcquire(a0, p1);
+    return RVCMutexAcquire(a0, a1);
   } else if (code == 22) {
     return RVCMutexRelease(a0);
   }
