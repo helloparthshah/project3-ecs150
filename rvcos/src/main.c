@@ -132,7 +132,6 @@ void remove_prio(TThreadID tid) {
   }
 }
 
-
 void dec_tick() {
   // Looping through the threads to check which are sleeping
   for (int i = 1; i < id_count; i++) {
@@ -294,7 +293,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
 
   // Removing the thread from deque
   remove_prio(thread);
-  
+
   scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
@@ -343,7 +342,7 @@ TStatus RVCThreadSleep(TTick tick) {
     tcb[sid].is_sleeping = 1;
     // Removing from the deque
     remove_prio(sid);
-        // Calling scheduler
+    // Calling scheduler
     scheduler();
   }
   return RVCOS_STATUS_SUCCESS;
@@ -362,6 +361,48 @@ TStatus RVCThreadState(TThreadID thread, TThreadStateRef stateref) {
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // returning the state
   *stateref = tcb[thread].state;
+  return RVCOS_STATUS_SUCCESS;
+}
+
+TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
+                            TMemoryPoolIDRef memoryref) {
+  if (base == NULL || size == 0 || memoryref == NULL)
+    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+  // Creating the memory pool
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
+                              void **pointer) {
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
+  return RVCOS_STATUS_SUCCESS;
+}
+
+TStatus RVCMutexCreate(TMutexIDRef mutexref) {
+  if (mutexref == NULL)
+    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+  // Creating the mutex
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMutexDelete(TMutexID mutex) {
+  // Deleting the mutex
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMutexQuery(TMutexID mutex, TThreadIDRef ownerref) {
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
+  return RVCOS_STATUS_SUCCESS;
+}
+TStatus RVCMutexRelease(TMutexID mutex) {
+  // Releaseing the mutex
   return RVCOS_STATUS_SUCCESS;
 }
 
