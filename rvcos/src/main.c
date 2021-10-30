@@ -98,6 +98,30 @@ volatile int curr_running = 1;
 volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 
+void push_back_prio(TThreadID tid) {
+  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+    push_back(low, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+    push_back(norm, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+    push_back(high, tid);
+  }
+}
+
+TThreadID pop_front_prio() {
+  TThreadID t;
+  if (isEmpty(high) == 0) {
+    t = pop_front(high);
+  } else if (isEmpty(norm) == 0) {
+    t = pop_front(norm);
+  } else if (isEmpty(low) == 0) {
+    t = pop_front(low);
+  } else {
+    t = 0;
+  }
+  return t;
+}
+
 void dec_tick() {
   // Looping through the threads to check which are sleeping
   for (int i = 1; i < id_count; i++) {
@@ -107,12 +131,7 @@ void dec_tick() {
         // Stop sleeping and add back to queue
         tcb[i].is_sleeping = 0;
         tcb[i].state = RVCOS_THREAD_STATE_READY;
-        if (tcb[i].priority == RVCOS_THREAD_PRIORITY_HIGH)
-          push_back(high, i);
-        else if (tcb[i].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-          push_back(norm, i);
-        else if (tcb[i].priority == RVCOS_THREAD_PRIORITY_LOW)
-          push_back(low, i);
+        push_back_prio(i);
       }
       // Decrement sleep for
       tcb[i].sleep_for--;
@@ -128,24 +147,11 @@ void scheduler() {
   if (tcb[old_running].state == RVCOS_THREAD_STATE_RUNNING) {
     tcb[old_running].state = RVCOS_THREAD_STATE_READY;
 
-    if (tcb[old_running].priority == RVCOS_THREAD_PRIORITY_HIGH)
-      push_back(high, old_running);
-    else if (tcb[old_running].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-      push_back(norm, old_running);
-    else if (tcb[old_running].priority == RVCOS_THREAD_PRIORITY_LOW)
-      push_back(low, old_running);
+    push_back_prio(old_running);
   }
 
   // Getting the highest priority thread
-  if (isEmpty(high) == 0) {
-    curr_running = pop_front(high);
-  } else if (isEmpty(norm) == 0) {
-    curr_running = pop_front(norm);
-  } else if (isEmpty(low) == 0) {
-    curr_running = pop_front(low);
-  } else {
-    curr_running = 0;
-  }
+  curr_running = pop_front_prio();
 
   // Switching the context
   tcb[curr_running].state = RVCOS_THREAD_STATE_RUNNING;
@@ -255,13 +261,7 @@ TStatus RVCThreadActivate(TThreadID thread) {
   //  Setting the state to ready
   tcb[thread].state = RVCOS_THREAD_STATE_READY;
   // Pushing the the priority deque
-  if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_LOW)
-    push_back((Deque *)low, thread);
-  else if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-    push_back((Deque *)norm, thread);
-  else if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_HIGH)
-    push_back((Deque *)high, thread);
-
+  push_back_prio(thread);
   scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
@@ -278,12 +278,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
     while (isEmpty(tcb[thread].waited_by) == 0) {
       uint32_t wid = pop_front(tcb[thread].waited_by);
       tcb[wid].state = RVCOS_THREAD_STATE_READY;
-      if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_LOW)
-        push_back((Deque *)low, wid);
-      else if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-        push_back((Deque *)norm, wid);
-      else if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_HIGH)
-        push_back((Deque *)high, wid);
+      push_back_prio(wid);
     }
 
   // Removing the thread from deque
@@ -298,7 +293,8 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
   return RVCOS_STATUS_SUCCESS;
 }
 
-TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref) {
+TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
+                      TTick timeout) {
   if (tcb[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   if (returnref == NULL)
@@ -452,7 +448,7 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
   } else if (code == 4) {
     return RVCThreadTerminate(a0, a1);
   } else if (code == 5) {
-    return RVCThreadWait(a0, (TThreadReturnRef)p1);
+    return RVCThreadWait(a0, (TThreadReturnRef)p1, a2);
   } else if (code == 6) {
     return RVCThreadID(p0);
   } else if (code == 7) {
