@@ -122,6 +122,16 @@ TThreadID pop_front_prio() {
   return t;
 }
 
+void remove_prio(TThreadID tid) {
+  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+    removeT(low, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+    removeT(norm, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+    removeT(high, tid);
+  }
+}
+
 void dec_tick() {
   // Looping through the threads to check which are sleeping
   for (int i = 1; i < id_count; i++) {
@@ -282,12 +292,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
     }
 
   // Removing the thread from deque
-  if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_LOW)
-    removeT((Deque *)low, thread);
-  else if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-    removeT((Deque *)norm, thread);
-  else if (tcb[thread].priority == RVCOS_THREAD_PRIORITY_HIGH)
-    removeT((Deque *)high, thread);
+  remove_prio(thread);
 
   scheduler();
   return RVCOS_STATUS_SUCCESS;
@@ -304,12 +309,7 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
   tcb[wid].state = RVCOS_THREAD_STATE_WAITING;
 
   // Remove from deque
-  if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_LOW)
-    removeT((Deque *)low, wid);
-  else if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-    removeT((Deque *)norm, wid);
-  else if (tcb[wid].priority == RVCOS_THREAD_PRIORITY_HIGH)
-    removeT((Deque *)high, wid);
+  remove_prio(wid);
 
   // Adding to the waiting queue
   if (tcb[thread].waited_by == NULL)
@@ -341,12 +341,7 @@ TStatus RVCThreadSleep(TTick tick) {
     tcb[sid].sleep_for = tick;
     tcb[sid].is_sleeping = 1;
     // Removing from the deque
-    if (tcb[sid].priority == RVCOS_THREAD_PRIORITY_LOW)
-      removeT((Deque *)low, sid);
-    else if (tcb[sid].priority == RVCOS_THREAD_PRIORITY_NORMAL)
-      removeT((Deque *)norm, sid);
-    else if (tcb[sid].priority == RVCOS_THREAD_PRIORITY_HIGH)
-      removeT((Deque *)high, sid);
+    remove_prio(sid);
     // Calling scheduler
     scheduler();
   }
@@ -419,8 +414,8 @@ int main() {
       enter_cartridge();
     }
     if (!(CARTRIDGE & 0x1) && isInit == 1) {
-      /* cursor = 0;
       ticks = 0;
+      /* cursor = 0;
       for (int i = 0; i < 36 * 64; i++) {
         VIDEO_MEMORY[i] = ' ';
       } */
