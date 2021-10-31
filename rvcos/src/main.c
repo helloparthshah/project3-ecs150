@@ -482,11 +482,6 @@ volatile char current_char_list[256];
 volatile int current_char_list_index = 0;
 
 void write_to_videomem(char c) {
-  if ((cursor) / 0x40 >= 36) {
-    // Shifting everything up when reach end of screen
-    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
-    cursor -= 0x40;
-  }
   // if backspace move cursor back
   if (c == '\b') {
     if (cursor > 0) {
@@ -506,6 +501,11 @@ void write_to_videomem(char c) {
 
 // Outputs charactor based on char_mode
 void output_char(char c) {
+  if ((cursor) / 0x40 >= 36) {
+    // Shifting everything up when reach end of screen
+    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
+    cursor -= 0x40;
+  }
   if (c == '\x1B') {
     char_mode = 1;
   } else if (c == '[') {
@@ -514,6 +514,7 @@ void output_char(char c) {
     else {
       char_mode = 0;
       current_char_list_index = 0;
+      write_to_videomem(c);
     }
   } else if ((c >= 'A' && c <= 'D') || c == 'H') {
     if (char_mode == 2) {
@@ -568,6 +569,7 @@ void output_char(char c) {
     } else {
       char_mode = 0;
       current_char_list_index = 0;
+      write_to_videomem(c);
     }
   } else {
     char_mode = 0;
