@@ -505,8 +505,22 @@ void output_char(char c) {
     } else if (char_mode == 5 && c == 'H') {
       // move cursor to line, column which are in current_char_list separated by
       // ';'
-      int line = current_char_list[0] - '0';
-      int column = current_char_list[2] - '0';
+      // parse line from current_char_list
+      int line = 0;
+      int column = 0;
+      int i = 0;
+      for (i = 0; i < current_char_list_index; i++) {
+        if (current_char_list[i] == ';') {
+          break;
+        } else {
+          line = line * 10 + current_char_list[i] - '0';
+        }
+      }
+      // parse column from current_char_list
+      for (i++; i < current_char_list_index; i++) {
+        column = column * 10 + current_char_list[i] - '0';
+      }
+      // move cursor to line, column
       cursor = line * 0x40 + column;
       char_mode = 0;
       current_char_list_index = 0;
@@ -575,7 +589,7 @@ volatile int isInit = 0;
 volatile uint32_t *saved_sp;
 
 int main() {
-  /* char *c = "\x1B[3;4HHello World!";
+  /* char *c = "\x1B[30;40HHello World!";
   RVCWriteText(c, strlen(c)); */
   while (1) {
     if (CARTRIDGE & 0x1 && isInit == 0) {
