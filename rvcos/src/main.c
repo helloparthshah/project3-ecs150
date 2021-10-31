@@ -481,27 +481,24 @@ volatile int char_mode = 0;
 char current_char_list[256];
 int current_char_list_index = 0;
 
-void write_to_videomem() {
-  for (uint32_t i = 0; i <= current_char_list_index; i++) {
-    char c = current_char_list[i];
-    // if backspace move cursor back
-    if (c == '\b') {
-      if (cursor > 0)
-        VIDEO_MEMORY[--cursor] = ' ';
-    } else if (c == '\n') {
-      // Jump to nextline
-      cursor += 0x40;
-      // Move back to start of the line
-      cursor -= cursor % 0x40;
-    } else {
-      // else printing the charactor
-      VIDEO_MEMORY[cursor++] = c;
-    }
-    if ((cursor) / 0x40 >= 36) {
-      // Shifting everything up when reach end of screen
-      memcpy((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
-      cursor -= 0x40;
-    }
+void write_to_videomem(char c) {
+  // if backspace move cursor back
+  if (c == '\b') {
+    if (cursor > 0)
+      VIDEO_MEMORY[--cursor] = ' ';
+  } else if (c == '\n') {
+    // Jump to nextline
+    cursor += 0x40;
+    // Move back to start of the line
+    cursor -= cursor % 0x40;
+  } else {
+    // else printing the charactor
+    VIDEO_MEMORY[cursor++] = c;
+  }
+  if ((cursor) / 0x40 >= 36) {
+    // Shifting everything up when reach end of screen
+    memcpy((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
+    cursor -= 0x40;
   }
 }
 
@@ -509,14 +506,14 @@ void write_to_videomem() {
 void output_char(char c) {
   if (c == '\x1B') {
     char_mode = 1;
-  }
-  if (c == '[') {
+  } else if (c == '[') {
     if (char_mode == 1)
       char_mode = 2;
-    else
+    else {
       char_mode = 0;
-  }
-  if ((c >= 'A' && c <= 'D') || c == 'H') {
+      current_char_list_index = 0;
+    }
+  } else if ((c >= 'A' && c <= 'D') || c == 'H') {
     if (char_mode == 2) {
       if (c == 'A') {
         cursor -= 0x40;
@@ -531,11 +528,20 @@ void output_char(char c) {
       }
       char_mode = 0;
       current_char_list_index = 0;
+    } else if (char_mode == 5 && c == 'H') {
+      // move cursor to line, column which are in current_char_list separated by
+      // ';'
+      int line = current_char_list[0] - '0';
+      int column = current_char_list[2] - '0';
+      cursor = line * 0x40 + column;
+      char_mode = 0;
+      current_char_list_index = 0;
+    } else {
+      char_mode = 0;
+      current_char_list_index = 0;
+      write_to_videomem(c);
     }
-    if (char_mode == 5 && c == 'H') {
-    }
-  }
-  if (c >= '0' && c <= '9') {
+  } else if (c >= '0' && c <= '9') {
     if (char_mode == 2 || char_mode == 3) {
       if (char_mode == 3 && current_char_list_index == 1 &&
           current_char_list[0] == '2' && c == 'J') {
@@ -550,9 +556,9 @@ void output_char(char c) {
     } else {
       char_mode = 0;
       current_char_list_index = 0;
+      write_to_videomem(c);
     }
-  }
-  if (c == ';') {
+  } else if (c == ';') {
     if (char_mode == 3) {
       current_char_list[current_char_list_index++] = ';';
       char_mode = 4;
@@ -560,6 +566,10 @@ void output_char(char c) {
       char_mode = 0;
       current_char_list_index = 0;
     }
+  } else {
+    char_mode = 0;
+    current_char_list_index = 0;
+    write_to_videomem(c);
   }
 }
 
@@ -568,6 +578,7 @@ TStatus RVCWriteText(const TTextCharacter *buffer, TMemorySize writesize) {
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Looping through the buffer
   for (uint32_t i = 0; i < writesize; i++) {
+    output_char(buffer[i]);
   }
   return RVCOS_STATUS_SUCCESS;
 }
@@ -588,6 +599,8 @@ volatile int isInit = 0;
 volatile uint32_t *saved_sp;
 
 int main() {
+  char *c = "\x1B[3;4HHello World!";
+  RVCWriteText(c, strlen(c));
   while (1) {
     if (CARTRIDGE & 0x1 && isInit == 0) {
       isInit = 1;
