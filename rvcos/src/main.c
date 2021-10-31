@@ -583,11 +583,13 @@ int main() {
       enter_cartridge();
     }
     if (!(CARTRIDGE & 0x1) && isInit == 1) {
+      // reset the ticks
       ticks = 0;
-      /* cursor = 0;
-      for (int i = 0; i < 36 * 64; i++) {
-        VIDEO_MEMORY[i] = ' ';
-      } */
+      // free the ready queue
+      free((PrioDeque *)ready_queue);
+      // free the sleeping and waiting queues
+      free((PrioDeque *)threads_sleeping);
+      free((PrioDeque *)threads_waiting);
       isInit = 0;
     }
   }

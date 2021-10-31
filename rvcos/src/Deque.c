@@ -15,6 +15,7 @@ Deque *dmalloc() {
 
 PrioDeque *pdmalloc() {
   PrioDeque *pd;
+  RVCMemoryPoolAllocate(0, sizeof(PrioDeque), (void **)&pd);
   pd->high = dmalloc();
   pd->norm = dmalloc();
   pd->low = dmalloc();
