@@ -259,7 +259,7 @@ TStatus RVCTickMS(uint32_t *tickmsref) {
   // Returnign the current ticksms
   if (tickmsref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  *tickmsref = 2;
+  *tickmsref = 200;
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -482,6 +482,11 @@ volatile char current_char_list[256];
 volatile int current_char_list_index = 0;
 
 void write_to_videomem(char c) {
+  if ((cursor) / 0x40 >= 36) {
+    // Shifting everything up when reach end of screen
+    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
+    cursor -= 0x40;
+  }
   // if backspace move cursor back
   if (c == '\b') {
     if (cursor > 0) {
@@ -496,11 +501,6 @@ void write_to_videomem(char c) {
   } else {
     // else printing the charactor
     VIDEO_MEMORY[cursor++] = c;
-  }
-  if ((cursor) / 0x40 >= 36) {
-    // Shifting everything up when reach end of screen
-    memcpy((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
-    cursor -= 0x40;
   }
 }
 
