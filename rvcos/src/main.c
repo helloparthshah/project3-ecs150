@@ -236,7 +236,9 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Storing the cartridge gp
   cart_gp = (uint32_t)gp;
   // Create idle thread
-  tcb[0].ctx = initialize_stack(malloc(1024) + 1024, idleThread, 0, 0);
+  void *ptr;
+  RVCMemoryPoolAllocate(0, 1024, &ptr);
+  tcb[0].ctx = initialize_stack(ptr + 1024, idleThread, 0, 0);
   tcb[0].entry = idleThread;
   tcb[0].id = 0;
   tcb[0].priority = 0;
@@ -301,9 +303,10 @@ TStatus RVCThreadActivate(TThreadID thread) {
   if (tcb[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
-  tcb[thread].ctx =
-      initialize_stack(malloc(tcb[thread].memsize) + tcb[thread].memsize,
-                       skeleton, tcb[thread].param, id_count);
+  void *ptr;
+  RVCMemoryPoolAllocate(thread, tcb[thread].memsize, &ptr);
+  tcb[thread].ctx = initialize_stack(ptr + tcb[thread].memsize, skeleton,
+                                     tcb[thread].param, id_count);
   if (tcb[thread].ctx == NULL)
     return RVCOS_STATUS_FAILURE;
   //  Setting the state to ready
@@ -429,6 +432,7 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
   if (base == NULL || size == 0 || memoryref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Creating the memory pool
+  // MemoryPool mp = (MemoryPool)malloc(sizeof(struct memory_pool));
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
@@ -439,9 +443,13 @@ TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
 }
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
                               void **pointer) {
+  // Allocates space using malloc
+  *pointer = malloc(size);
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
+  // frees the memory
+  free(pointer);
   return RVCOS_STATUS_SUCCESS;
 }
 

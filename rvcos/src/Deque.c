@@ -1,17 +1,22 @@
 #include "Deque.h"
+#include "RVCOS.h"
 #include <stdint.h>
 #include <stdlib.h>
 
 Deque *dmalloc() {
   // Allocating the size of the Deque
-  Deque *d = (Deque *)malloc(sizeof(Deque));
+  // Deque *d = (Deque *)malloc(sizeof(Deque));
+  Deque *d;
+  RVCMemoryPoolAllocate(0, sizeof(Deque), (void **)&d);
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
 }
 
 void push_front(volatile Deque *d, TThreadID v) {
-  struct Node *n = (struct Node *)malloc(sizeof(struct Node));
+  // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
+  struct Node *n;
+  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -30,7 +35,9 @@ void push_front(volatile Deque *d, TThreadID v) {
 }
 
 void push_back(volatile Deque *d, TThreadID v) {
-  struct Node *n = (struct Node *)malloc(sizeof(struct Node));
+  // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
+  struct Node *n;
+  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -79,7 +86,8 @@ void removeT(volatile Deque *d, TThreadID v) {
     else
       d->tail = n->prev;
   }
-  free(n);
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
   return;
 }
 
@@ -92,7 +100,8 @@ TThreadID pop_front(volatile Deque *d) {
   else
     // Set head to next
     d->head = n->next;
-  free(n);
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
   return v;
 }
 
@@ -104,7 +113,8 @@ TThreadID pop_back(volatile Deque *d) {
   else
     // Set tail to prev
     d->tail = n->prev;
-  free(n);
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
   return v;
 }
 
@@ -130,7 +140,8 @@ void print(volatile Deque *d, uint32_t line) {
     writei(n->val, line++);
     n = n->next;
   }
-  free(n);
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
 }
 
 // Function to return size of deque
@@ -141,6 +152,7 @@ uint32_t size(volatile Deque *d) {
     s++;
     n = n->next;
   }
-  free(n);
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
   return s;
 }
