@@ -478,14 +478,16 @@ digit3 6
  */
 volatile int char_mode = 0;
 
-char current_char_list[256];
-int current_char_list_index = 0;
+volatile char current_char_list[256];
+volatile int current_char_list_index = 0;
 
 void write_to_videomem(char c) {
   // if backspace move cursor back
   if (c == '\b') {
-    if (cursor > 0)
-      VIDEO_MEMORY[--cursor] = ' ';
+    if (cursor > 0) {
+      // VIDEO_MEMORY[--cursor] = ' ';
+      cursor--;
+    }
   } else if (c == '\n') {
     // Jump to nextline
     cursor += 0x40;
@@ -541,13 +543,14 @@ void output_char(char c) {
       current_char_list_index = 0;
       write_to_videomem(c);
     }
+  } else if (char_mode == 3 && current_char_list_index == 1 &&
+             current_char_list[0] == '2' && c == 'J') {
+    // Clear the screen
+    memset((void *)VIDEO_MEMORY, 0, 0x40 * 36);
+    char_mode = 0;
+    current_char_list_index = 0;
   } else if (c >= '0' && c <= '9') {
     if (char_mode == 2 || char_mode == 3) {
-      if (char_mode == 3 && current_char_list_index == 1 &&
-          current_char_list[0] == '2' && c == 'J') {
-        // Clear the screen
-        memset((void *)VIDEO_MEMORY, 0, 0x40 * 36);
-      }
       current_char_list[current_char_list_index++] = c;
       char_mode = 3;
     } else if (char_mode == 4 || char_mode == 5) {
@@ -599,8 +602,8 @@ volatile int isInit = 0;
 volatile uint32_t *saved_sp;
 
 int main() {
-  char *c = "\x1B[3;4HHello World!";
-  RVCWriteText(c, strlen(c));
+  /* char *c = "\x1B[3;4HHello World!";
+  RVCWriteText(c, strlen(c)); */
   while (1) {
     if (CARTRIDGE & 0x1 && isInit == 0) {
       isInit = 1;
