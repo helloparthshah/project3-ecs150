@@ -17,6 +17,12 @@ typedef struct {
 } Deque;
 
 typedef struct {
+  Deque *high;
+  Deque *norm;
+  Deque *low;
+} PrioDeque;
+
+typedef struct {
   uint32_t *ctx;
   TThreadEntry entry;
   void *param;
@@ -31,6 +37,7 @@ typedef struct {
 } Thread;
 
 Deque *dmalloc();
+PrioDeque *pdmalloc();
 
 void print(volatile Deque *d, uint32_t line);
 uint32_t size(volatile Deque *d);
@@ -46,5 +53,9 @@ TThreadID pop_back(volatile Deque *d);
 
 TThreadID front(volatile Deque *d);
 TThreadID end(volatile Deque *d);
+
+void push_back_prio(volatile PrioDeque *d, TThreadID tid);
+TThreadID pop_front_prio(volatile PrioDeque *d);
+void remove_prio(volatile PrioDeque *d, TThreadID tid);
 
 #endif

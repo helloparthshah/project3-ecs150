@@ -13,6 +13,14 @@ Deque *dmalloc() {
   return d;
 }
 
+PrioDeque *pdmalloc() {
+  PrioDeque *pd;
+  pd->high = dmalloc();
+  pd->norm = dmalloc();
+  pd->low = dmalloc();
+  return pd;
+}
+
 void push_front(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
@@ -155,4 +163,40 @@ uint32_t size(volatile Deque *d) {
   // free(n);
   RVCMemoryPoolDeallocate(0, n);
   return s;
+}
+
+extern volatile Thread tcb[256];
+
+void push_back_prio(volatile PrioDeque *d, TThreadID tid) {
+  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+    push_back(d->low, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+    push_back(d->norm, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+    push_back(d->high, tid);
+  }
+}
+
+TThreadID pop_front_prio(volatile PrioDeque *d) {
+  TThreadID t;
+  if (isEmpty(d->high) == 0) {
+    t = pop_front(d->high);
+  } else if (isEmpty(d->norm) == 0) {
+    t = pop_front(d->norm);
+  } else if (isEmpty(d->low) == 0) {
+    t = pop_front(d->low);
+  } else {
+    t = 0;
+  }
+  return t;
+}
+
+void remove_prio(volatile PrioDeque *d, TThreadID tid) {
+  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+    removeT(d->low, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+    removeT(d->norm, tid);
+  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+    removeT(d->high, tid);
+  }
 }

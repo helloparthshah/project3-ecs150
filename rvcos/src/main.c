@@ -89,50 +89,14 @@ uint32_t *initialize_stack(uint32_t *sp, TThreadEntry fun, void *param,
   return sp;
 }
 
-volatile Deque *high;
-volatile Deque *norm;
-volatile Deque *low;
+volatile Thread tcb[256];
+volatile PrioDeque *ready_queue;
 volatile Deque *threads_waiting;
 volatile Deque *threads_sleeping;
-volatile Thread tcb[256];
 volatile int id_count = 1;
 volatile int curr_running = 1;
 volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
-
-void push_back_prio(TThreadID tid) {
-  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
-    push_back(low, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
-    push_back(norm, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
-    push_back(high, tid);
-  }
-}
-
-TThreadID pop_front_prio() {
-  TThreadID t;
-  if (isEmpty(high) == 0) {
-    t = pop_front(high);
-  } else if (isEmpty(norm) == 0) {
-    t = pop_front(norm);
-  } else if (isEmpty(low) == 0) {
-    t = pop_front(low);
-  } else {
-    t = 0;
-  }
-  return t;
-}
-
-void remove_prio(TThreadID tid) {
-  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
-    removeT(low, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
-    removeT(norm, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
-    removeT(high, tid);
-  }
-}
 
 void dec_tick() {
   // Looping through the threads to check which are sleeping
@@ -142,7 +106,7 @@ void dec_tick() {
     if (tcb[n->val].sleep_for == 0) {
       removeT(threads_sleeping, n->val);
       tcb[n->val].state = RVCOS_THREAD_STATE_READY;
-      push_back_prio(n->val);
+      push_back_prio(ready_queue, n->val);
     }
     tcb[n->val].sleep_for--;
     n = n->next;
@@ -153,7 +117,7 @@ void dec_tick() {
     if (tcb[n->val].wait_timeout == 0) {
       removeT(threads_waiting, n->val);
       tcb[n->val].state = RVCOS_THREAD_STATE_READY;
-      push_back_prio(n->val);
+      push_back_prio(ready_queue, n->val);
     }
     tcb[n->val].wait_timeout--;
     n = n->next;
@@ -193,11 +157,11 @@ void scheduler() {
   if (tcb[old_running].state == RVCOS_THREAD_STATE_RUNNING) {
     tcb[old_running].state = RVCOS_THREAD_STATE_READY;
 
-    push_back_prio(old_running);
+    push_back_prio(ready_queue, old_running);
   }
 
   // Getting the highest priority thread
-  curr_running = pop_front_prio();
+  curr_running = pop_front_prio(ready_queue);
 
   // Switching the context
   tcb[curr_running].state = RVCOS_THREAD_STATE_RUNNING;
@@ -226,12 +190,11 @@ TStatus RVCInitialize(uint32_t *gp) {
   if (gp == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Allocating memory to the priority deques
-  high = dmalloc();
-  norm = dmalloc();
-  low = dmalloc();
+  ready_queue = pdmalloc();
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
-  if (high == NULL || norm == NULL || low == NULL)
+  if (ready_queue == NULL || threads_sleeping == NULL ||
+      threads_waiting == NULL)
     return RVCOS_STATUS_FAILURE;
   // Storing the cartridge gp
   cart_gp = (uint32_t)gp;
@@ -312,7 +275,7 @@ TStatus RVCThreadActivate(TThreadID thread) {
   //  Setting the state to ready
   tcb[thread].state = RVCOS_THREAD_STATE_READY;
   // Pushing the the priority deque
-  push_back_prio(thread);
+  push_back_prio(ready_queue, thread);
   scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
@@ -331,12 +294,12 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
       if (tcb[wid].state == RVCOS_THREAD_STATE_WAITING) {
         tcb[wid].state = RVCOS_THREAD_STATE_READY;
         removeT(threads_waiting, wid);
-        push_back_prio(wid);
+        push_back_prio(ready_queue, wid);
       }
     }
 
   // Removing the thread from deque
-  remove_prio(thread);
+  remove_prio(ready_queue, thread);
 
   scheduler();
   return RVCOS_STATUS_SUCCESS;
@@ -364,7 +327,7 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
   tcb[wid].state = RVCOS_THREAD_STATE_WAITING;
 
   // Remove from deque
-  remove_prio(wid);
+  remove_prio(ready_queue, wid);
 
   // Adding to the waiting queue
   if (tcb[thread].waited_by == NULL)
@@ -404,7 +367,7 @@ TStatus RVCThreadSleep(TTick tick) {
     // Adding to the sleeping queue
     push_back(threads_sleeping, sid);
     // Removing from the deque
-    remove_prio(sid);
+    remove_prio(ready_queue, sid);
     // Calling scheduler
     scheduler();
   }
