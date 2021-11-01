@@ -453,6 +453,8 @@ volatile char current_char_list[256];
 volatile int current_char_list_index = 0;
 
 void write_to_videomem(char c) {
+  char_mode = 0;
+  current_char_list_index = 0;
   // if backspace move cursor back
   if (c == '\b') {
     if (cursor > 0) {
@@ -478,25 +480,29 @@ void output_char(char c) {
     cursor -= 0x40;
   }
   if (c == '\x1B') {
+    // Setting char_mode to esc
     char_mode = 1;
   } else if (c == '[') {
+    // Setting char_mode to [
     if (char_mode == 1)
       char_mode = 2;
     else {
-      char_mode = 0;
-      current_char_list_index = 0;
       write_to_videomem(c);
     }
   } else if ((c >= 'A' && c <= 'D') || c == 'H') {
+    // Up, down, left, right
     if (char_mode == 2) {
       if (c == 'A') {
-        cursor -= 0x40;
+        if (cursor > 0x40)
+          cursor -= 0x40;
       } else if (c == 'B') {
-        cursor += 0x40;
+        if (cursor < 0x40 * 36)
+          cursor += 0x40;
       } else if (c == 'C') {
         cursor += 1;
       } else if (c == 'D') {
-        cursor -= 1;
+        if (cursor > 0)
+          cursor -= 1;
       } else if (c == 'H') {
         cursor = 0;
       }
@@ -525,8 +531,6 @@ void output_char(char c) {
       char_mode = 0;
       current_char_list_index = 0;
     } else {
-      char_mode = 0;
-      current_char_list_index = 0;
       write_to_videomem(c);
     }
   } else if (char_mode == 3 && current_char_list_index == 1 &&
@@ -543,8 +547,6 @@ void output_char(char c) {
       current_char_list[current_char_list_index++] = c;
       char_mode = 5;
     } else {
-      char_mode = 0;
-      current_char_list_index = 0;
       write_to_videomem(c);
     }
   } else if (c == ';') {
@@ -552,13 +554,9 @@ void output_char(char c) {
       current_char_list[current_char_list_index++] = ';';
       char_mode = 4;
     } else {
-      char_mode = 0;
-      current_char_list_index = 0;
       write_to_videomem(c);
     }
   } else {
-    char_mode = 0;
-    current_char_list_index = 0;
     write_to_videomem(c);
   }
 }
