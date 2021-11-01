@@ -474,11 +474,6 @@ void write_to_videomem(char c) {
 
 // Outputs charactor based on char_mode
 void output_char(char c) {
-  if ((cursor) / 0x40 >= 36) {
-    // Shifting everything up when reach end of screen
-    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
-    cursor -= 0x40;
-  }
   if (c == '\x1B') {
     // Setting char_mode to esc
     char_mode = 1;
@@ -496,8 +491,7 @@ void output_char(char c) {
         if (cursor > 0x40)
           cursor -= 0x40;
       } else if (c == 'B') {
-        if (cursor < 0x40 * 36)
-          cursor += 0x40;
+        cursor += 0x40;
       } else if (c == 'C') {
         cursor += 1;
       } else if (c == 'D') {
@@ -558,6 +552,11 @@ void output_char(char c) {
     }
   } else {
     write_to_videomem(c);
+  }
+  if ((cursor) / 0x40 >= 36) {
+    // Shifting everything up when reach end of screen
+    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
+    cursor -= 0x40;
   }
 }
 
