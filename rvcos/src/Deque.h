@@ -37,14 +37,14 @@ typedef struct {
 } Thread;
 
 typedef struct {
-  Thread *threads;
+  Thread threads[256];
   size_t used;
   size_t size;
-} Array;
+} TCBArray;
 
-void initArray(volatile Array *a, size_t initialSize);
+void tcb_init(volatile TCBArray *a, size_t initialSize);
 
-void insertArray(volatile Array *a, Thread element);
+void tcb_push_back(volatile TCBArray *a, Thread element);
 
 Deque *dmalloc();
 PrioDeque *pdmalloc();

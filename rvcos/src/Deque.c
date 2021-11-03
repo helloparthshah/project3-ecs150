@@ -165,7 +165,7 @@ uint32_t size(volatile Deque *d) {
   return s;
 }
 
-extern volatile Array tcb;
+extern volatile TCBArray tcb;
 
 void push_back_prio(volatile PrioDeque *d, TThreadID tid) {
   if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
@@ -201,19 +201,20 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
   }
 }
 
-void initArray(volatile Array *a, size_t initialSize) {
-  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
-                        (void **)&(a->threads));
-  // a->threads = malloc(initialSize * sizeof(int));
+void tcb_init(volatile TCBArray *a, size_t initialSize) {
+  /* RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+                        (void **)&(a->threads)); */
+  // a->threads = malloc(initialSize * sizeof(Thread));
   a->used = 0;
   a->size = initialSize;
 }
 
-void insertArray(volatile Array *a, Thread element) {
+void tcb_push_back(volatile TCBArray *a, Thread element) {
   if (a->used == a->size) {
     a->size *= 2;
-    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
-    // a->array = realloc(a->array, a->size * sizeof(int));
+    // RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void
+    // **)&(a->threads));
+    // a->threads = realloc(a->threads, a->size * sizeof(Thread));
   }
   a->threads[a->used++] = element;
 }
