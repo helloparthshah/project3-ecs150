@@ -36,6 +36,16 @@ typedef struct {
   int wait_timeout;
 } Thread;
 
+typedef struct {
+  Thread *threads;
+  size_t used;
+  size_t size;
+} Array;
+
+void initArray(volatile Array *a, size_t initialSize);
+
+void insertArray(volatile Array *a, Thread element);
+
 Deque *dmalloc();
 PrioDeque *pdmalloc();
 

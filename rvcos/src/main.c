@@ -1,4 +1,3 @@
-// #include "RVCOS.h"
 #include "Deque.h"
 #include "RVCOS.h"
 #include <stdint.h>
@@ -32,8 +31,6 @@ __attribute__((always_inline)) inline uint32_t get_tp(void) {
   asm volatile("mv %0,tp" : "=r"(result));
   return result;
 }
-
-// uint32_t get_tp();
 
 __attribute__((always_inline)) inline void set_ra(uint32_t tp) {
   asm volatile("lw ra, 0(%0)" ::"r"(tp));
@@ -89,12 +86,12 @@ uint32_t *initialize_stack(uint32_t *sp, TThreadEntry fun, void *param,
   return sp;
 }
 
-volatile Thread tcb[256];
+volatile Array tcb;
 volatile PrioDeque *ready_queue;
 volatile Deque *threads_waiting;
 volatile Deque *threads_sleeping;
-volatile int id_count = 1;
-volatile int curr_running = 1;
+// volatile int id_count = 0;
+volatile int curr_running = 0;
 volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 
@@ -102,25 +99,26 @@ void dec_tick() {
   // Looping through the threads to check which are sleeping
   // Loop through threads_sleeping and decrement sleep_for
   int s = size(threads_sleeping);
-  for (int i = 0; i < s; i++) {
-    TThreadID t = pop_front(threads_sleeping);
-    if (tcb[t].sleep_for == 0) {
-      tcb[t].state = RVCOS_THREAD_STATE_READY;
-      push_back_prio(ready_queue, t);
-    } else {
-      tcb[t].sleep_for--;
-      push_back(threads_sleeping, t);
+  if (isEmpty(threads_sleeping) == 0)
+    for (int i = 0; i < s; i++) {
+      TThreadID t = pop_front(threads_sleeping);
+      if (tcb.threads[t].sleep_for == 0) {
+        tcb.threads[t].state = RVCOS_THREAD_STATE_READY;
+        push_back_prio(ready_queue, t);
+      } else {
+        tcb.threads[t].sleep_for--;
+        push_back(threads_sleeping, t);
+      }
     }
-  }
-  
+
   s = size(threads_waiting);
   for (int i = 0; i < s; i++) {
     TThreadID t = pop_front(threads_waiting);
-    if (tcb[t].wait_timeout == 0) {
-      tcb[t].state = RVCOS_THREAD_STATE_READY;
+    if (tcb.threads[t].wait_timeout == 0) {
+      tcb.threads[t].state = RVCOS_THREAD_STATE_READY;
       push_back_prio(ready_queue, t);
     } else {
-      tcb[t].wait_timeout--;
+      tcb.threads[t].wait_timeout--;
       push_back(threads_waiting, t);
     }
   }
@@ -131,9 +129,8 @@ void scheduler() {
 
   dec_tick();
   // Add back only if it was running previously
-  if (old_running >= 0 &&
-      tcb[old_running].state == RVCOS_THREAD_STATE_RUNNING) {
-    tcb[old_running].state = RVCOS_THREAD_STATE_READY;
+  if (tcb.threads[old_running].state == RVCOS_THREAD_STATE_RUNNING) {
+    tcb.threads[old_running].state = RVCOS_THREAD_STATE_READY;
     push_back_prio(ready_queue, old_running);
   }
 
@@ -141,11 +138,11 @@ void scheduler() {
   curr_running = pop_front_prio(ready_queue);
 
   // Switching the context
-  if (curr_running >= 0 &&
-      tcb[curr_running].state == RVCOS_THREAD_STATE_READY) {
-    tcb[curr_running].state = RVCOS_THREAD_STATE_RUNNING;
+  if (tcb.threads[curr_running].state == RVCOS_THREAD_STATE_READY) {
+    tcb.threads[curr_running].state = RVCOS_THREAD_STATE_RUNNING;
     if (old_running != curr_running) {
-      switch_context((uint32_t **)&tcb[old_running].ctx, tcb[curr_running].ctx);
+      switch_context((uint32_t **)&tcb.threads[old_running].ctx,
+                     tcb.threads[curr_running].ctx);
     }
   }
 }
@@ -157,8 +154,9 @@ TThreadReturn skeleton(void *param) {
   csr_enable_interrupts();
   csr_write_mie(0x888);
   // Calling the entry function and storing the return value
-  uint32_t ret_value = call_on_other_gp(tcb[curr_running].param,
-                                        tcb[curr_running].entry, cart_gp);
+  uint32_t ret_value =
+      call_on_other_gp(tcb.threads[curr_running].param,
+                       tcb.threads[curr_running].entry, cart_gp);
   // Disabling the interrupts
   csr_write_mie(0x000);
   csr_disable_interrupts();
@@ -185,24 +183,46 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Create idle thread
   void *ptr;
   RVCMemoryPoolAllocate(0, 1024, &ptr);
-  tcb[0].ctx = initialize_stack(ptr + 1024, idleThread, 0, 0);
+  initArray(&tcb, 256);
+
+  Thread empty_thread = {
+      .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
+      .param = 0,
+      .entry = idleThread,
+      .id = 0,
+      .priority = RVCOS_THREAD_PRIORITY_LOWEST,
+      .memsize = 1024,
+      .sleep_for = 0,
+      .wait_timeout = 0,
+      .state = RVCOS_THREAD_STATE_READY,
+  };
+  insertArray(&tcb, empty_thread);
+  /* tcb[0].ctx = initialize_stack(ptr + 1024, idleThread, 0, 0);
   tcb[0].entry = idleThread;
   tcb[0].id = 0;
-  tcb[0].priority = 0x00;
+  tcb[0].priority = RVCOS_THREAD_PRIORITY_LOWEST;
   tcb[0].memsize = 1024;
   tcb[0].sleep_for = 0;
   tcb[0].state = RVCOS_THREAD_STATE_READY;
-  tcb[0].wait_timeout = 0;
+  tcb[0].wait_timeout = 0; */
   // Create main thread
-  tcb[1].id = 1;
+  Thread main_thread = {
+      .id = 1,
+      .priority = RVCOS_THREAD_PRIORITY_NORMAL,
+      .state = RVCOS_THREAD_STATE_RUNNING,
+      .sleep_for = 0,
+      .wait_timeout = 0,
+  };
+  insertArray(&tcb, main_thread);
+  /* tcb[1].id = 1;
   tcb[1].priority = RVCOS_THREAD_PRIORITY_NORMAL;
   tcb[1].state = RVCOS_THREAD_STATE_RUNNING;
   tcb[1].sleep_for = 0;
-  tcb[1].wait_timeout = 0;
+  tcb[1].wait_timeout = 0; */
   // Make tp point to main
   curr_running = 1;
   set_tp(1);
-  id_count = 2;
+  // id_count = 2;
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -227,7 +247,7 @@ TStatus RVCThreadCreate(TThreadEntry entry, void *param, TMemorySize memsize,
   if (entry == NULL || tid == NULL || memsize == 0 || prio > 3)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Creating the thread and adding to the tcb
-  tcb[id_count].entry = entry;
+  /* tcb[id_count].entry = entry;
   tcb[id_count].id = id_count;
   *tid = id_count;
   tcb[id_count].priority = prio;
@@ -235,32 +255,46 @@ TStatus RVCThreadCreate(TThreadEntry entry, void *param, TMemorySize memsize,
   tcb[id_count].memsize = memsize;
   tcb[id_count].state = RVCOS_THREAD_STATE_CREATED;
   tcb[id_count].sleep_for = 0;
-  tcb[id_count].wait_timeout = 0;
-  id_count++;
+  tcb[id_count].wait_timeout = 0; */
+  *tid = tcb.used;
+  Thread t = {
+      .entry = entry,
+      .id = tcb.used,
+      .priority = prio,
+      .param = param,
+      .memsize = memsize,
+      .state = RVCOS_THREAD_STATE_CREATED,
+      .sleep_for = 0,
+      .wait_timeout = 0,
+  };
+  insertArray(&tcb, t);
+  writei(tcb.threads[2].id, 10);
+  // id_count++;
   return RVCOS_STATUS_SUCCESS;
 }
 
 TStatus RVCThreadDelete(TThreadID thread) {
-  if (tcb[thread].id != thread)
+  if (tcb.threads[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   Thread t;
-  free(tcb[thread].ctx);
-  tcb[thread] = t;
+  free(tcb.threads[thread].ctx);
+  tcb.threads[thread] = t;
   return RVCOS_STATUS_SUCCESS;
 }
 
 TStatus RVCThreadActivate(TThreadID thread) {
-  if (tcb[thread].id != thread)
+  if (tcb.threads[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
   void *ptr;
-  RVCMemoryPoolAllocate(thread, tcb[thread].memsize, &ptr);
-  tcb[thread].ctx = initialize_stack(ptr + tcb[thread].memsize, skeleton,
-                                     tcb[thread].param, id_count);
-  if (tcb[thread].ctx == NULL)
+  RVCMemoryPoolAllocate(thread, tcb.threads[thread].memsize, &ptr);
+  tcb.threads[thread].ctx =
+      initialize_stack(ptr + tcb.threads[thread].memsize, skeleton,
+                       tcb.threads[thread].param, thread);
+  if (tcb.threads[thread].ctx == NULL)
     return RVCOS_STATUS_FAILURE;
   //  Setting the state to ready
-  tcb[thread].state = RVCOS_THREAD_STATE_READY;
+  tcb.threads[thread].state = RVCOS_THREAD_STATE_READY;
   // Pushing the the priority deque
   push_back_prio(ready_queue, thread);
 
@@ -269,24 +303,24 @@ TStatus RVCThreadActivate(TThreadID thread) {
 }
 
 TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
-  if (tcb[thread].id != thread)
+  if (tcb.threads[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Setting state to dead
-  tcb[thread].state = RVCOS_THREAD_STATE_DEAD;
+  tcb.threads[thread].state = RVCOS_THREAD_STATE_DEAD;
   // Setting the return value
-  tcb[thread].return_val = returnval;
+  tcb.threads[thread].return_val = returnval;
   // If current is waited by then set all to ready
-  if (tcb[thread].waited_by != NULL) {
-    while (isEmpty(tcb[thread].waited_by) == 0) {
-      uint32_t wid = pop_front(tcb[thread].waited_by);
-      if (tcb[wid].state == RVCOS_THREAD_STATE_WAITING) {
-        tcb[wid].state = RVCOS_THREAD_STATE_READY;
-        tcb[wid].wait_timeout = 0;
+  if (tcb.threads[thread].waited_by != NULL) {
+    while (isEmpty(tcb.threads[thread].waited_by) == 0) {
+      uint32_t wid = pop_front(tcb.threads[thread].waited_by);
+      if (tcb.threads[wid].state == RVCOS_THREAD_STATE_WAITING) {
+        tcb.threads[wid].state = RVCOS_THREAD_STATE_READY;
+        tcb.threads[wid].wait_timeout = 0;
         removeT(threads_waiting, wid);
         push_back_prio(ready_queue, wid);
       }
     }
-    free(tcb[thread].waited_by);
+    free(tcb.threads[thread].waited_by);
   }
 
   // Removing the thread from deque
@@ -298,7 +332,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
 
 TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
                       TTick timeout) {
-  if (tcb[thread].id != thread)
+  if (tcb.threads[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   if (returnref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
@@ -311,31 +345,31 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
   }
 
   // Setting state to waiting
-  tcb[wid].state = RVCOS_THREAD_STATE_WAITING;
+  tcb.threads[wid].state = RVCOS_THREAD_STATE_WAITING;
 
   // Remove from deque
   remove_prio(ready_queue, wid);
 
   // Adding to the waiting queue
-  if (tcb[thread].waited_by == NULL)
-    tcb[thread].waited_by = dmalloc();
-  if (tcb[thread].waited_by == NULL)
+  if (tcb.threads[thread].waited_by == NULL)
+    tcb.threads[thread].waited_by = dmalloc();
+  if (tcb.threads[thread].waited_by == NULL)
     return RVCOS_STATUS_FAILURE;
-  push_back(tcb[thread].waited_by, wid);
+  push_back(tcb.threads[thread].waited_by, wid);
 
   // Setting the timeout
   if (timeout != RVCOS_TIMEOUT_INFINITE) {
-    tcb[wid].wait_timeout = timeout;
+    tcb.threads[wid].wait_timeout = timeout;
     push_back(threads_waiting, wid);
   }
 
   // Scheduling till it's dead
-  while (tcb[thread].state != RVCOS_THREAD_STATE_DEAD) {
+  while (tcb.threads[thread].state != RVCOS_THREAD_STATE_DEAD) {
     scheduler();
   }
 
   // Setting the return value
-  *returnref = tcb[thread].return_val;
+  *returnref = tcb.threads[thread].return_val;
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -348,8 +382,8 @@ TStatus RVCThreadSleep(TTick tick) {
   } else {
     TThreadID sid = curr_running;
     // Setting state to waiting
-    tcb[sid].state = RVCOS_THREAD_STATE_WAITING;
-    tcb[sid].sleep_for = tick;
+    tcb.threads[sid].state = RVCOS_THREAD_STATE_WAITING;
+    tcb.threads[sid].sleep_for = tick;
     // Adding to the sleeping queue
     push_back(threads_sleeping, sid);
     // Removing from the deque
@@ -367,12 +401,12 @@ TStatus RVCThreadID(TThreadIDRef threadref) {
 }
 
 TStatus RVCThreadState(TThreadID thread, TThreadStateRef stateref) {
-  if (tcb[thread].id != thread)
+  if (tcb.threads[thread].id != thread)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   if (stateref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // returning the state
-  *stateref = tcb[thread].state;
+  *stateref = tcb.threads[thread].state;
   return RVCOS_STATUS_SUCCESS;
 }
 

@@ -96,17 +96,16 @@ void removeT(volatile Deque *d, TThreadID v) {
       d->tail = n->prev;
   }
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
-  return;
+  // RVCMemoryPoolDeallocate(0, n);
 }
 
 TThreadID pop_front(volatile Deque *d) {
   // Get value
   TThreadID v = d->head->val;
   struct Node *n = d->head;
-  if (d->head == d->tail)
+  if (d->head == d->tail) {
     d->head = d->tail = NULL;
-  else
+  } else
     // Set head to next
     d->head = n->next;
   // free(n);
@@ -123,7 +122,7 @@ TThreadID pop_back(volatile Deque *d) {
     // Set tail to prev
     d->tail = n->prev;
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
+  // RVCMemoryPoolDeallocate(0, n);
   return v;
 }
 
@@ -150,7 +149,7 @@ void print(volatile Deque *d, uint32_t line) {
     n = n->next;
   }
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
+  // RVCMemoryPoolDeallocate(0, n);
 }
 
 // Function to return size of deque
@@ -162,18 +161,18 @@ uint32_t size(volatile Deque *d) {
     n = n->next;
   }
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
+  // RVCMemoryPoolDeallocate(0, n);
   return s;
 }
 
-extern volatile Thread tcb[256];
+extern volatile Array tcb;
 
 void push_back_prio(volatile PrioDeque *d, TThreadID tid) {
-  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+  if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
     push_back(d->low, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+  } else if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
     push_back(d->norm, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+  } else if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
     push_back(d->high, tid);
   }
 }
@@ -193,11 +192,28 @@ TThreadID pop_front_prio(volatile PrioDeque *d) {
 }
 
 void remove_prio(volatile PrioDeque *d, TThreadID tid) {
-  if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
+  if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_LOW) {
     removeT(d->low, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
+  } else if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_NORMAL) {
     removeT(d->norm, tid);
-  } else if (tcb[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
+  } else if (tcb.threads[tid].priority == RVCOS_THREAD_PRIORITY_HIGH) {
     removeT(d->high, tid);
   }
+}
+
+void initArray(volatile Array *a, size_t initialSize) {
+  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+                        (void **)&(a->threads));
+  // a->threads = malloc(initialSize * sizeof(int));
+  a->used = 0;
+  a->size = initialSize;
+}
+
+void insertArray(volatile Array *a, Thread element) {
+  if (a->used == a->size) {
+    a->size *= 2;
+    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
+    // a->array = realloc(a->array, a->size * sizeof(int));
+  }
+  a->threads[a->used++] = element;
 }

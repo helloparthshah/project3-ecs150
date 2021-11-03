@@ -23,7 +23,9 @@ _interrupt_handler:
 
 hardware_interrupt: # Saves the regs, calls the c handler and then restores the registers
     csrr    ra,mscratch
-    addi	sp,sp,-40 # Move back 40 to save 10 regs
+    addi	sp,sp,-44 # Move back 40 to save 10 regs
+    sw	    ra,40(sp)
+    csrr    ra,mepc
     sw	    ra,36(sp)
     sw	    t0,32(sp)
     sw	    t1,28(sp)
@@ -36,6 +38,8 @@ hardware_interrupt: # Saves the regs, calls the c handler and then restores the 
     sw	    a5,0(sp)
     call    c_interrupt_handler # Calling the c function
     lw	    ra,36(sp)
+    csrw    mepc,ra
+    lw	    ra,40(sp)
     lw	    t0,32(sp)
     lw	    t1,28(sp)
     lw	    t2,24(sp)
@@ -45,5 +49,5 @@ hardware_interrupt: # Saves the regs, calls the c handler and then restores the 
     lw	    a3,8(sp)
     lw	    a4,4(sp)
     lw	    a5,0(sp)
-    addi    sp,sp,40
+    addi    sp,sp,44
     mret
