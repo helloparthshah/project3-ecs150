@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #define CONTROLLER (*((volatile uint32_t *)0x40000018))
 
@@ -87,8 +88,10 @@ uint32_t *initialize_stack(uint32_t *sp, TThreadEntry fun, void *param,
 }
 
 volatile TCBArray tcb;
+volatile MutexArray mutex_array;
 volatile PrioDeque *ready_queue;
 volatile Deque *threads_waiting;
+volatile Deque *threads_blocked_mutexes;
 volatile Deque *threads_sleeping;
 // volatile int id_count = 0;
 volatile int curr_running = 0;
@@ -119,6 +122,18 @@ void dec_tick() {
     } else {
       tcb.threads[t].wait_timeout--;
       push_back(threads_waiting, t);
+    }
+  }
+  s = size(threads_blocked_mutexes);
+  for (int i = 0; i < s; i++) {
+    TThreadID t = pop_front(threads_blocked_mutexes);
+    if (tcb.threads[t].wait_timeout == 0) {
+      remove_prio(mutex_array.mutexes[tcb.threads[t].mutex_id].waiting, t);
+      tcb.threads[t].state = RVCOS_THREAD_STATE_READY;
+      push_back_prio(ready_queue, t);
+    } else {
+      tcb.threads[t].wait_timeout--;
+      push_back(threads_blocked_mutexes, t);
     }
   }
 }
@@ -175,10 +190,13 @@ TStatus RVCInitialize(uint32_t *gp) {
   ready_queue = pdmalloc();
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
+  threads_blocked_mutexes = dmalloc();
   tcb_init(&tcb, 256);
+  mutex_init(&mutex_array, 256);
 
   if (ready_queue == NULL || threads_sleeping == NULL ||
-      threads_waiting == NULL)
+      threads_waiting == NULL || tcb.threads == NULL ||
+      mutex_array.mutexes == NULL)
     return RVCOS_STATUS_FAILURE;
 
   // Create idle thread
@@ -196,6 +214,7 @@ TStatus RVCInitialize(uint32_t *gp) {
                           .state = RVCOS_THREAD_STATE_READY,
                       });
   curr_running = tcb.used;
+  set_tp(curr_running);
   // Create main thread
   tcb_push_back(&tcb, (Thread){
                           .id = tcb.used,
@@ -205,8 +224,6 @@ TStatus RVCInitialize(uint32_t *gp) {
                           .wait_timeout = 0,
                       });
   // Make tp point to main
-  set_tp(1);
-  // id_count = 2;
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -312,10 +329,10 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
 
   TThreadID wid = curr_running;
 
-  /* if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
+  if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
     scheduler();
     return RVCOS_STATUS_SUCCESS;
-  } */
+  }
 
   // Setting state to waiting
   tcb.threads[wid].state = RVCOS_THREAD_STATE_WAITING;
@@ -332,10 +349,10 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
   push_back(tcb.threads[thread].waited_by, wid);
 
   // Setting the timeout
-  /* if (timeout != RVCOS_TIMEOUT_INFINITE) {
+  if (timeout != RVCOS_TIMEOUT_INFINITE) {
     tcb.threads[wid].wait_timeout = timeout;
     push_back(threads_waiting, wid);
-  } */
+  }
 
   // Scheduling till it's dead
   while (tcb.threads[thread].state != RVCOS_THREAD_STATE_DEAD) {
@@ -388,6 +405,7 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                             TMemoryPoolIDRef memoryref) {
   if (base == NULL || size == 0 || memoryref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+
   // Creating the memory pool
   // MemoryPool mp = (MemoryPool)malloc(sizeof(struct memory_pool));
   return RVCOS_STATUS_SUCCESS;
@@ -401,7 +419,7 @@ TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
                               void **pointer) {
   // Allocates space using malloc
-  *pointer = malloc(size);
+  *pointer = (void *)((u_int8_t *)malloc(size));
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
@@ -413,21 +431,84 @@ TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
 TStatus RVCMutexCreate(TMutexIDRef mutexref) {
   if (mutexref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  // Creating the mutex
+  // Creating the mutex and adding it to the mutex_array
+  *mutexref = mutex_array.used;
+  mutex_push_back(&mutex_array, (Mutex){
+                                    .id = mutex_array.used,
+                                    .owner = RVCOS_THREAD_ID_INVALID,
+                                    .waiting = pdmalloc(),
+                                    .state = RVCOS_MUTEX_STATE_UNLOCKED,
+                                });
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMutexDelete(TMutexID mutex) {
   // Deleting the mutex
+  // mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_DELETED;
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMutexQuery(TMutexID mutex, TThreadIDRef ownerref) {
+  if (mutex_array.mutexes[mutex].id != mutex)
+    return RVCOS_STATUS_ERROR_INVALID_ID;
+  if (ownerref == NULL)
+    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+  // Returning the owner
+  *ownerref = mutex_array.mutexes[mutex].owner;
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
+  if (mutex_array.mutexes[mutex].id != mutex)
+    return RVCOS_STATUS_ERROR_INVALID_ID;
+
+  if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
+    if (mutex_array.mutexes[mutex].state == RVCOS_MUTEX_STATE_LOCKED) {
+      return RVCOS_STATUS_FAILURE;
+    }
+    return RVCOS_STATUS_SUCCESS;
+  }
+
+  if (mutex_array.mutexes[mutex].state == RVCOS_MUTEX_STATE_UNLOCKED) {
+    // Setting the owner
+    mutex_array.mutexes[mutex].owner = curr_running;
+    // Setting the state
+    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
+    return RVCOS_STATUS_SUCCESS;
+  } else {
+    if (timeout != RVCOS_TIMEOUT_INFINITE) {
+      // Setting the timeout
+      tcb.threads[curr_running].mutex_timeout = timeout;
+      push_back(threads_blocked_mutexes, curr_running);
+    }
+    tcb.threads[curr_running].mutex_id = mutex;
+    // Adding to the waiting queue
+    push_back_prio(mutex_array.mutexes[mutex].waiting, curr_running);
+  }
+
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMutexRelease(TMutexID mutex) {
   // Releaseing the mutex
+  if (mutex_array.mutexes[mutex].id != mutex)
+    return RVCOS_STATUS_ERROR_INVALID_ID;
+  if (mutex_array.mutexes[mutex].state != RVCOS_MUTEX_STATE_LOCKED)
+    return RVCOS_STATUS_FAILURE;
+  if (mutex_array.mutexes[mutex].owner != curr_running)
+    return RVCOS_STATUS_FAILURE;
+  // Checking if there are any threads waiting for the mutex
+  if (pd_size(mutex_array.mutexes[mutex].waiting) > 0) {
+    // Setting the owner
+    mutex_array.mutexes[mutex].owner =
+        pop_front_prio(mutex_array.mutexes[mutex].waiting);
+  
+    removeT(threads_blocked_mutexes, mutex_array.mutexes[mutex].owner);
+    // Setting the state
+    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
+  } else {
+    // Setting the owner
+    mutex_array.mutexes[mutex].owner = RVCOS_THREAD_ID_INVALID;
+    // Setting the state
+    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_UNLOCKED;
+  }
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -497,7 +578,8 @@ void output_char(char c) {
       char_mode = 0;
       current_char_list_index = 0;
     } else if (char_mode == 5 && c == 'H') {
-      // move cursor to line, column which are in current_char_list separated by
+      // move cursor to line, column which are in current_char_list separated
+      // by
       // ';'
       // parse line from current_char_list
       int line = 0;
@@ -603,8 +685,6 @@ int main() {
 
 uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
                            uint32_t a4, uint32_t code) {
-  csr_disable_interrupts();
-  csr_write_mie(0x000);
   void *p0 = (void *)a0;
   void *p1 = (void *)a1;
   void *p2 = (void *)a2;
@@ -659,7 +739,5 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
   } else if (code == 22) {
     status = RVCMutexRelease(a0);
   }
-  csr_enable_interrupts();
-  csr_write_mie(0x888);
   return status;
 }

@@ -34,17 +34,34 @@ typedef struct {
   uint32_t return_val;
   int sleep_for;
   int wait_timeout;
+  int mutex_timeout;
+  TThreadID mutex_id;
 } Thread;
 
 typedef struct {
-  Thread threads[256];
+  TThreadID id;
+  TThreadID owner;
+  int state;
+  PrioDeque *waiting;
+} Mutex;
+
+typedef struct {
+  Thread *threads;
   size_t used;
   size_t size;
 } TCBArray;
 
-void tcb_init(volatile TCBArray *a, size_t initialSize);
+typedef struct {
+  Mutex *mutexes;
+  size_t used;
+  size_t size;
+} MutexArray;
 
+void tcb_init(volatile TCBArray *a, size_t initialSize);
 void tcb_push_back(volatile TCBArray *a, Thread element);
+
+void mutex_init(volatile MutexArray *a, size_t initialSize);
+void mutex_push_back(volatile MutexArray *a, Mutex element);
 
 Deque *dmalloc();
 PrioDeque *pdmalloc();
@@ -67,5 +84,6 @@ TThreadID end(volatile Deque *d);
 void push_back_prio(volatile PrioDeque *d, TThreadID tid);
 TThreadID pop_front_prio(volatile PrioDeque *d);
 void remove_prio(volatile PrioDeque *d, TThreadID tid);
+uint32_t pd_size(volatile PrioDeque *d);
 
 #endif

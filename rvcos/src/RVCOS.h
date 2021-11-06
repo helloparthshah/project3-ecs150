@@ -16,6 +16,9 @@
 #define RVCOS_THREAD_STATE_READY ((TThreadState)0x04)
 #define RVCOS_THREAD_STATE_WAITING ((TThreadState)0x05)
 
+#define RVCOS_MUTEX_STATE_LOCKED ((TThreadState)0x01)
+#define RVCOS_MUTEX_STATE_UNLOCKED ((TThreadState)0x02)
+
 #define RVCOS_THREAD_PRIORITY_LOWEST ((TThreadPriority)0x00)
 #define RVCOS_THREAD_PRIORITY_LOW ((TThreadPriority)0x01)
 #define RVCOS_THREAD_PRIORITY_NORMAL ((TThreadPriority)0x02)
@@ -41,6 +44,7 @@ typedef uint32_t TThreadState, *TThreadStateRef;
 typedef char TTextCharacter, *TTextCharacterRef;
 typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
 typedef uint32_t TMutexID, *TMutexIDRef;
+typedef uint32_t TMutexState, *TMutexStateRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
 

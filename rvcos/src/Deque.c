@@ -202,8 +202,8 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
 }
 
 void tcb_init(volatile TCBArray *a, size_t initialSize) {
-  /* RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
-                        (void **)&(a->threads)); */
+  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+                        (void **)&(a->threads));
   // a->threads = malloc(initialSize * sizeof(Thread));
   a->used = 0;
   a->size = initialSize;
@@ -212,9 +212,36 @@ void tcb_init(volatile TCBArray *a, size_t initialSize) {
 void tcb_push_back(volatile TCBArray *a, Thread element) {
   if (a->used == a->size) {
     a->size *= 2;
-    // RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void
-    // **)&(a->threads));
+    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
     // a->threads = realloc(a->threads, a->size * sizeof(Thread));
   }
   a->threads[a->used++] = element;
+}
+
+void mutex_init(volatile MutexArray *a, size_t initialSize) {
+  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+                        (void **)&(a->mutexes));
+  // a->mutex = malloc(initialSize * sizeof(Mutex));
+  a->used = 0;
+  a->size = initialSize;
+}
+
+void mutex_push_back(volatile MutexArray *a, Mutex element) {
+  if (a->used == a->size) {
+    a->size *= 2;
+    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->mutexes));
+    // a->mutexes = realloc(a->mutexes, a->size * sizeof(Mutex));
+  }
+  a->mutexes[a->used++] = element;
+}
+
+uint32_t pd_size(volatile PrioDeque *d) {
+  uint32_t s = 0;
+  if (d->high != NULL)
+    s += size(d->high);
+  if (d->norm != NULL)
+    s += size(d->norm);
+  if (d->low != NULL)
+    s += size(d->low);
+  return s;
 }
