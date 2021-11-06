@@ -82,10 +82,14 @@ extern volatile uint32_t controller_status;
 extern void scheduler();
 
 void c_interrupt_handler(void) {
+  /* csr_disable_interrupts();
+  csr_write_mie(0x000); */
   uint64_t NewCompare = (((uint64_t)MTIMECMP_HIGH) << 32) | MTIMECMP_LOW;
   NewCompare += 200;
   MTIMECMP_HIGH = NewCompare >> 32;
   MTIMECMP_LOW = NewCompare;
   ticks++;
   scheduler();
+  /* csr_enable_interrupts();
+  csr_write_mie(0x888); */
 }

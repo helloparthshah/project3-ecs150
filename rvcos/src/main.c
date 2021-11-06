@@ -283,7 +283,8 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
   tcb.threads[thread].return_val = returnval;
   // If current is waited by then set all to ready
   if (tcb.threads[thread].waited_by != NULL) {
-    while (isEmpty(tcb.threads[thread].waited_by) == 0) {
+    int s = size(tcb.threads[thread].waited_by);
+    for (int i = 0; i < s; i++) {
       uint32_t wid = pop_front(tcb.threads[thread].waited_by);
       if (tcb.threads[wid].state == RVCOS_THREAD_STATE_WAITING) {
         tcb.threads[wid].state = RVCOS_THREAD_STATE_READY;
@@ -297,8 +298,8 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
 
   // Removing the thread from deque
   remove_prio(ready_queue, thread);
-  removeT(threads_sleeping, thread);
-  removeT(threads_waiting, thread);
+
+  scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -311,10 +312,10 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
 
   TThreadID wid = curr_running;
 
-  if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
+  /* if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
     scheduler();
     return RVCOS_STATUS_SUCCESS;
-  }
+  } */
 
   // Setting state to waiting
   tcb.threads[wid].state = RVCOS_THREAD_STATE_WAITING;
@@ -327,13 +328,14 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
     tcb.threads[thread].waited_by = dmalloc();
   if (tcb.threads[thread].waited_by == NULL)
     return RVCOS_STATUS_FAILURE;
+
   push_back(tcb.threads[thread].waited_by, wid);
 
   // Setting the timeout
-  if (timeout != RVCOS_TIMEOUT_INFINITE) {
+  /* if (timeout != RVCOS_TIMEOUT_INFINITE) {
     tcb.threads[wid].wait_timeout = timeout;
     push_back(threads_waiting, wid);
-  }
+  } */
 
   // Scheduling till it's dead
   while (tcb.threads[thread].state != RVCOS_THREAD_STATE_DEAD) {
@@ -601,57 +603,63 @@ int main() {
 
 uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
                            uint32_t a4, uint32_t code) {
+  csr_disable_interrupts();
+  csr_write_mie(0x000);
   void *p0 = (void *)a0;
   void *p1 = (void *)a1;
   void *p2 = (void *)a2;
   void *p4 = (void *)a4;
+
+  TStatus status = RVCOS_STATUS_FAILURE;
   // Calling syscalls based on ecall code
   if (code == 0) {
-    return RVCInitialize(p0);
+    status = RVCInitialize(p0);
   } else if (code == 1) {
-    return RVCThreadCreate((TThreadEntry)p0, p1, (TMemorySize)a2, a3, p4);
+    status = RVCThreadCreate((TThreadEntry)p0, p1, (TMemorySize)a2, a3, p4);
   } else if (code == 2) {
-    return RVCThreadDelete(a0);
+    status = RVCThreadDelete(a0);
   } else if (code == 3) {
-    return RVCThreadActivate(a0);
+    status = RVCThreadActivate(a0);
   } else if (code == 4) {
-    return RVCThreadTerminate(a0, a1);
+    status = RVCThreadTerminate(a0, a1);
   } else if (code == 5) {
-    return RVCThreadWait(a0, (TThreadReturnRef)p1, a2);
+    status = RVCThreadWait(a0, (TThreadReturnRef)p1, a2);
   } else if (code == 6) {
-    return RVCThreadID(p0);
+    status = RVCThreadID(p0);
   } else if (code == 7) {
-    return RVCThreadState(a0, p1);
+    status = RVCThreadState(a0, p1);
   } else if (code == 8) {
-    return RVCThreadSleep(a0);
+    status = RVCThreadSleep(a0);
   } else if (code == 9) {
-    return RVCTickMS(p0);
+    status = RVCTickMS(p0);
   } else if (code == 10) {
-    return RVCTickCount(p0);
+    status = RVCTickCount(p0);
   } else if (code == 11) {
-    return RVCWriteText(p0, a1);
+    status = RVCWriteText(p0, a1);
   } else if (code == 12) {
-    return RVCReadController((SControllerStatusRef)p0);
+    status = RVCReadController((SControllerStatusRef)p0);
   } else if (code == 13) {
-    return RVCMemoryPoolCreate(p0, a1, p2);
+    status = RVCMemoryPoolCreate(p0, a1, p2);
   } else if (code == 14) {
-    return RVCMemoryPoolDelete(a0);
+    status = RVCMemoryPoolDelete(a0);
   } else if (code == 15) {
-    return RVCMemoryPoolQuery(a0, p1);
+    status = RVCMemoryPoolQuery(a0, p1);
   } else if (code == 16) {
-    return RVCMemoryPoolAllocate(a0, a1, p2);
+    status = RVCMemoryPoolAllocate(a0, a1, p2);
   } else if (code == 17) {
-    return RVCMemoryPoolDeallocate(a0, p1);
+    status = RVCMemoryPoolDeallocate(a0, p1);
   } else if (code == 18) {
-    return RVCMutexCreate(p0);
+    status = RVCMutexCreate(p0);
   } else if (code == 19) {
-    return RVCMutexDelete(a0);
+    status = RVCMutexDelete(a0);
   } else if (code == 20) {
-    return RVCMutexQuery(a0, p1);
+    status = RVCMutexQuery(a0, p1);
   } else if (code == 21) {
-    return RVCMutexAcquire(a0, a1);
+    status = RVCMutexAcquire(a0, a1);
   } else if (code == 22) {
-    return RVCMutexRelease(a0);
+    status = RVCMutexRelease(a0);
   }
-  return RVCOS_STATUS_FAILURE;
+  csr_enable_interrupts();
+  csr_write_mie(0x888);
+  return status;
 }
