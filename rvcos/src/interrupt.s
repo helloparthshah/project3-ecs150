@@ -37,6 +37,10 @@ hardware_interrupt: # Saves the regs, calls the c handler and then restores the 
     sw	    a4,4(sp)
     sw	    a5,0(sp)
     call    c_interrupt_handler # Calling the c function
+    .option push
+    .option norelax
+    la      gp, __global_pointer$
+    .option pop
     lw	    ra,36(sp)
     csrw    mepc,ra
     lw	    ra,40(sp)
