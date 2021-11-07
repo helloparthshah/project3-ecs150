@@ -41,10 +41,12 @@ typedef uint32_t TMemorySize, *TMemorySizeRef;
 typedef uint32_t TThreadID, *TThreadIDRef;
 typedef uint32_t TThreadPriority, *TThreadPriorityRef;
 typedef uint32_t TThreadState, *TThreadStateRef;
-typedef char TTextCharacter, *TTextCharacterRef;
-typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
+
 typedef uint32_t TMutexID, *TMutexIDRef;
 typedef uint32_t TMutexState, *TMutexStateRef;
+
+typedef char TTextCharacter, *TTextCharacterRef;
+typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
 

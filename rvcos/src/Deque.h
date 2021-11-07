@@ -35,13 +35,14 @@ typedef struct {
   int sleep_for;
   int wait_timeout;
   int mutex_timeout;
-  TThreadID mutex_id;
+  TMutexID waiting_for_mutex;
+  Deque *mutex_id;
 } Thread;
 
 typedef struct {
-  TThreadID id;
+  TMutexID id;
   TThreadID owner;
-  int state;
+  TMutexState state;
   PrioDeque *waiting;
 } Mutex;
 

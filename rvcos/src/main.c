@@ -91,7 +91,7 @@ volatile TCBArray tcb;
 volatile MutexArray mutex_array;
 volatile PrioDeque *ready_queue;
 volatile Deque *threads_waiting;
-volatile Deque *threads_blocked_mutexes;
+volatile Deque *threads_blocked_on_mutexes;
 volatile Deque *threads_sleeping;
 // volatile int id_count = 0;
 volatile int curr_running = 0;
@@ -124,24 +124,27 @@ void dec_tick() {
       push_back(threads_waiting, t);
     }
   }
-  s = size(threads_blocked_mutexes);
+  s = size(threads_blocked_on_mutexes);
   for (int i = 0; i < s; i++) {
-    TThreadID t = pop_front(threads_blocked_mutexes);
-    if (tcb.threads[t].wait_timeout == 0) {
-      remove_prio(mutex_array.mutexes[tcb.threads[t].mutex_id].waiting, t);
+    TThreadID t = pop_front(threads_blocked_on_mutexes);
+
+    if (tcb.threads[t].mutex_timeout == 0) {
+      tcb.threads[t].mutex_timeout = -1;
+      remove_prio(mutex_array.mutexes[tcb.threads[t].waiting_for_mutex].waiting,
+                  t);
       tcb.threads[t].state = RVCOS_THREAD_STATE_READY;
       push_back_prio(ready_queue, t);
-    } else {
-      tcb.threads[t].wait_timeout--;
-      push_back(threads_blocked_mutexes, t);
+    } else if (tcb.threads[t].mutex_timeout > 0) {
+      tcb.threads[t].mutex_timeout--;
+      push_back(threads_blocked_on_mutexes, t);
     }
   }
 }
 
+int line2 = 32;
 void scheduler() {
   int old_running = curr_running;
 
-  dec_tick();
   // Add back only if it was running previously
   if (tcb.threads[old_running].state == RVCOS_THREAD_STATE_RUNNING) {
     tcb.threads[old_running].state = RVCOS_THREAD_STATE_READY;
@@ -190,7 +193,8 @@ TStatus RVCInitialize(uint32_t *gp) {
   ready_queue = pdmalloc();
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
-  threads_blocked_mutexes = dmalloc();
+  threads_blocked_on_mutexes = dmalloc();
+  // TODO: change the 256
   tcb_init(&tcb, 256);
   mutex_init(&mutex_array, 256);
 
@@ -222,6 +226,8 @@ TStatus RVCInitialize(uint32_t *gp) {
                           .state = RVCOS_THREAD_STATE_RUNNING,
                           .sleep_for = 0,
                           .wait_timeout = 0,
+                          .mutex_timeout = -1,
+                          .mutex_id = dmalloc(),
                       });
   // Make tp point to main
   return RVCOS_STATUS_SUCCESS;
@@ -258,6 +264,8 @@ TStatus RVCThreadCreate(TThreadEntry entry, void *param, TMemorySize memsize,
                           .state = RVCOS_THREAD_STATE_CREATED,
                           .sleep_for = 0,
                           .wait_timeout = 0,
+                          .mutex_timeout = -1,
+                          .mutex_id = dmalloc(),
                       });
   return RVCOS_STATUS_SUCCESS;
 }
@@ -284,9 +292,7 @@ TStatus RVCThreadActivate(TThreadID thread) {
     return RVCOS_STATUS_FAILURE;
   //  Setting the state to ready
   tcb.threads[thread].state = RVCOS_THREAD_STATE_READY;
-  // Pushing the the priority deque
   push_back_prio(ready_queue, thread);
-
   scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
@@ -310,11 +316,16 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
         push_back_prio(ready_queue, wid);
       }
     }
-    free(tcb.threads[thread].waited_by);
   }
 
-  // Removing the thread from deque
-  remove_prio(ready_queue, thread);
+  // Releasing the mutex
+  if (tcb.threads[thread].mutex_id != NULL) {
+    int s = size(tcb.threads[thread].mutex_id);
+    for (int i = 0; i < s; i++) {
+      uint32_t mid = pop_front(tcb.threads[thread].mutex_id);
+      RVCMutexRelease(mid);
+    }
+  }
 
   scheduler();
   return RVCOS_STATUS_SUCCESS;
@@ -336,9 +347,6 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
 
   // Setting state to waiting
   tcb.threads[wid].state = RVCOS_THREAD_STATE_WAITING;
-
-  // Remove from deque
-  remove_prio(ready_queue, wid);
 
   // Adding to the waiting queue
   if (tcb.threads[thread].waited_by == NULL)
@@ -377,8 +385,6 @@ TStatus RVCThreadSleep(TTick tick) {
     tcb.threads[sid].sleep_for = tick;
     // Adding to the sleeping queue
     push_back(threads_sleeping, sid);
-    // Removing from the deque
-    remove_prio(ready_queue, sid);
     // Calling scheduler
     scheduler();
   }
@@ -456,6 +462,7 @@ TStatus RVCMutexQuery(TMutexID mutex, TThreadIDRef ownerref) {
   *ownerref = mutex_array.mutexes[mutex].owner;
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
   if (mutex_array.mutexes[mutex].id != mutex)
     return RVCOS_STATUS_ERROR_INVALID_ID;
@@ -468,24 +475,33 @@ TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
   }
 
   if (mutex_array.mutexes[mutex].state == RVCOS_MUTEX_STATE_UNLOCKED) {
+    push_back(tcb.threads[curr_running].mutex_id, mutex);
     // Setting the owner
     mutex_array.mutexes[mutex].owner = curr_running;
     // Setting the state
     mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
     return RVCOS_STATUS_SUCCESS;
   } else {
-    if (timeout != RVCOS_TIMEOUT_INFINITE) {
+    if (timeout == RVCOS_TIMEOUT_INFINITE) {
+      // Setting the timeout
+      tcb.threads[curr_running].mutex_timeout = -1;
+    } else {
       // Setting the timeout
       tcb.threads[curr_running].mutex_timeout = timeout;
-      push_back(threads_blocked_mutexes, curr_running);
     }
-    tcb.threads[curr_running].mutex_id = mutex;
     // Adding to the waiting queue
     push_back_prio(mutex_array.mutexes[mutex].waiting, curr_running);
+    //  Setting the mutex current thread is waiting on
+    tcb.threads[curr_running].waiting_for_mutex = mutex;
+    tcb.threads[curr_running].state = RVCOS_THREAD_STATE_WAITING;
+    push_back(threads_blocked_on_mutexes, curr_running);
   }
-
+  while (tcb.threads[curr_running].state == RVCOS_THREAD_STATE_WAITING) {
+    scheduler();
+  }
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMutexRelease(TMutexID mutex) {
   // Releaseing the mutex
   if (mutex_array.mutexes[mutex].id != mutex)
@@ -494,21 +510,34 @@ TStatus RVCMutexRelease(TMutexID mutex) {
     return RVCOS_STATUS_FAILURE;
   if (mutex_array.mutexes[mutex].owner != curr_running)
     return RVCOS_STATUS_FAILURE;
+
+  // Setting the state
+  mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_UNLOCKED;
+  // Removing the mutex
+  removeT(tcb.threads[curr_running].mutex_id, mutex);
+
   // Checking if there are any threads waiting for the mutex
   if (pd_size(mutex_array.mutexes[mutex].waiting) > 0) {
     // Setting the owner
     mutex_array.mutexes[mutex].owner =
         pop_front_prio(mutex_array.mutexes[mutex].waiting);
-  
-    removeT(threads_blocked_mutexes, mutex_array.mutexes[mutex].owner);
+    // Removing from the blocked timeout queue
+    removeT(threads_blocked_on_mutexes, mutex_array.mutexes[mutex].owner);
     // Setting the state
     mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
+
+    push_back(tcb.threads[mutex_array.mutexes[mutex].owner].mutex_id, mutex);
+
+    push_back(tcb.threads[mutex_array.mutexes[mutex].owner].mutex_id, mutex);
+    // Adding to the ready queue
+    tcb.threads[mutex_array.mutexes[mutex].owner].state =
+        RVCOS_THREAD_STATE_READY;
+    push_back_prio(ready_queue, mutex_array.mutexes[mutex].owner);
   } else {
-    // Setting the owner
+    // Resetting the owner
     mutex_array.mutexes[mutex].owner = RVCOS_THREAD_ID_INVALID;
-    // Setting the state
-    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_UNLOCKED;
   }
+  scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -566,11 +595,13 @@ void output_char(char c) {
         if (cursor > 0x40)
           cursor -= 0x40;
       } else if (c == 'B') {
-        cursor += 0x40;
+        if (cursor <= 0x40 * 35)
+          cursor += 0x40;
       } else if (c == 'C') {
-        cursor += 1;
+        if ((cursor + 1) % 0x40 != 0)
+          cursor += 1;
       } else if (c == 'D') {
-        if (cursor > 0)
+        if (cursor % 0x40 != 0)
           cursor -= 1;
       } else if (c == 'H') {
         cursor = 0;
@@ -578,10 +609,6 @@ void output_char(char c) {
       char_mode = 0;
       current_char_list_index = 0;
     } else if (char_mode == 5 && c == 'H') {
-      // move cursor to line, column which are in current_char_list separated
-      // by
-      // ';'
-      // parse line from current_char_list
       int line = 0;
       int column = 0;
       int i = 0;
