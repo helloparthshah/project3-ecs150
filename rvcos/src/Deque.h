@@ -56,16 +56,39 @@ typedef struct {
   Mutex *mutexes;
   size_t used;
   size_t size;
-} MutexArray;
+} MCBArray;
+
+// Struct for video controller
+typedef struct {
+  const TTextCharacter *buffer;
+  TMemorySize writesize;
+  TThreadID tid;
+} TextBuffer;
+
+struct TextNode {
+  struct TextNode *next;
+  struct TextNode *prev;
+  TextBuffer val;
+};
+
+typedef struct {
+  struct TextNode *head;
+  struct TextNode *tail;
+} TBDeque;
+
+void tb_push_back(volatile TBDeque *d, TextBuffer v);
+TextBuffer tb_pop_front(volatile TBDeque *d);
+int isEmptyTB(volatile TBDeque *d);
 
 void tcb_init(volatile TCBArray *a, size_t initialSize);
 void tcb_push_back(volatile TCBArray *a, Thread element);
 
-void mutex_init(volatile MutexArray *a, size_t initialSize);
-void mutex_push_back(volatile MutexArray *a, Mutex element);
+void mutex_init(volatile MCBArray *a, size_t initialSize);
+void mutex_push_back(volatile MCBArray *a, Mutex element);
 
 Deque *dmalloc();
 PrioDeque *pdmalloc();
+TBDeque *tbmalloc();
 
 void print(volatile Deque *d, uint32_t line);
 uint32_t size(volatile Deque *d);

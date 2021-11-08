@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define RVCOS_TICKS_MS 2
+
 #define RVCOS_STATUS_FAILURE ((TStatus)0x00)
 #define RVCOS_STATUS_SUCCESS ((TStatus)0x01)
 #define RVCOS_STATUS_ERROR_INVALID_PARAMETER ((TStatus)0x02)

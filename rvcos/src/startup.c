@@ -1,3 +1,4 @@
+#include "Deque.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -57,6 +58,7 @@ __attribute__((always_inline)) extern inline void csr_disable_interrupts(void) {
 #define MTIMECMP_LOW (*((volatile uint32_t *)0x40000010))
 #define MTIMECMP_HIGH (*((volatile uint32_t *)0x40000014))
 #define CONTROLLER (*((volatile uint32_t *)0x40000018))
+#define IER (*((volatile uint32_t *)0x40000000))
 
 void init(void) {
   uint8_t *Source = _erodata;
@@ -71,8 +73,9 @@ void init(void) {
     *Base++ = 0;
   }
 
-  /* csr_write_mie(0x888);    // Enable all interrupt sources
-  csr_enable_interrupts(); // Global interrupt enable */
+  // csr_write_mie(0x888);    // Enable all interrupt sources
+  // csr_enable_interrupts(); // Global interrupt enable
+  IER = 0x2;
   MTIMECMP_LOW = 1;
   MTIMECMP_HIGH = 0;
 }
@@ -81,13 +84,20 @@ extern volatile uint32_t ticks;
 extern volatile uint32_t controller_status;
 extern void scheduler();
 extern void dec_tick();
+extern void video_interrupt_handler();
+#define VIP (*((volatile uint32_t *)0x40000004))
 
 void c_interrupt_handler(void) {
-  uint64_t NewCompare = (((uint64_t)MTIMECMP_HIGH) << 32) | MTIMECMP_LOW;
-  NewCompare += 200;
-  MTIMECMP_HIGH = NewCompare >> 32;
-  MTIMECMP_LOW = NewCompare;
-  ticks++;
-  dec_tick();
-  scheduler();
+  uint32_t mcause = csr_mcause_read();
+  if ((VIP & 0x2) && mcause == 0x8000000B) {
+    video_interrupt_handler();
+  } else if (mcause == 0x80000007) {
+    uint64_t NewCompare = (((uint64_t)MTIMECMP_HIGH) << 32) | MTIMECMP_LOW;
+    NewCompare += RVCOS_TICKS_MS;
+    MTIMECMP_HIGH = NewCompare >> 32;
+    MTIMECMP_LOW = NewCompare;
+    ticks++;
+    dec_tick();
+    scheduler();
+  }
 }

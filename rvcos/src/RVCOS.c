@@ -3,15 +3,17 @@
 #include <string.h>
 
 #define CONTROLLER (*((volatile uint32_t *)0x40000018))
+#define VIP (*((volatile uint32_t *)0x40000004))
 
 volatile TCBArray tcb;
+volatile MCBArray mcb;
 volatile PrioDeque *ready_queue;
 volatile Deque *threads_waiting;
 volatile Deque *threads_blocked_on_mutexes;
 volatile Deque *threads_sleeping;
+volatile TBDeque *text_buffer_queue;
 volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
-volatile MutexArray mutex_array;
 volatile int curr_running = 0;
 
 volatile char *VIDEO_MEMORY = (volatile char *)(0x50000000 + 0xFE800);
@@ -124,8 +126,7 @@ void dec_tick() {
 
     if (tcb.threads[t].mutex_timeout == 0) {
       tcb.threads[t].mutex_timeout = -1;
-      remove_prio(mutex_array.mutexes[tcb.threads[t].waiting_for_mutex].waiting,
-                  t);
+      remove_prio(mcb.mutexes[tcb.threads[t].waiting_for_mutex].waiting, t);
       tcb.threads[t].state = RVCOS_THREAD_STATE_READY;
       push_back_prio(ready_queue, t);
     } else if (tcb.threads[t].mutex_timeout > 0) {
@@ -187,13 +188,13 @@ TStatus RVCInitialize(uint32_t *gp) {
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
   threads_blocked_on_mutexes = dmalloc();
-  // TODO: change the 256
+  text_buffer_queue = tbmalloc();
+  // Initializing the mutexes
   tcb_init(&tcb, 256);
-  mutex_init(&mutex_array, 256);
+  mutex_init(&mcb, 256);
 
   if (ready_queue == NULL || threads_sleeping == NULL ||
-      threads_waiting == NULL || tcb.threads == NULL ||
-      mutex_array.mutexes == NULL)
+      threads_waiting == NULL || tcb.threads == NULL || mcb.mutexes == NULL)
     return RVCOS_STATUS_FAILURE;
 
   // Create idle thread
@@ -230,7 +231,7 @@ TStatus RVCTickMS(uint32_t *tickmsref) {
   // Returnign the current ticksms
   if (tickmsref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  *tickmsref = 200;
+  *tickmsref = RVCOS_TICKS_MS;
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -431,13 +432,13 @@ TStatus RVCMutexCreate(TMutexIDRef mutexref) {
   if (mutexref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Creating the mutex and adding it to the mutex_array
-  *mutexref = mutex_array.used;
-  mutex_push_back(&mutex_array, (Mutex){
-                                    .id = mutex_array.used,
-                                    .owner = RVCOS_THREAD_ID_INVALID,
-                                    .waiting = pdmalloc(),
-                                    .state = RVCOS_MUTEX_STATE_UNLOCKED,
-                                });
+  *mutexref = mcb.used;
+  mutex_push_back(&mcb, (Mutex){
+                            .id = mcb.used,
+                            .owner = RVCOS_THREAD_ID_INVALID,
+                            .waiting = pdmalloc(),
+                            .state = RVCOS_MUTEX_STATE_UNLOCKED,
+                        });
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -447,32 +448,32 @@ TStatus RVCMutexDelete(TMutexID mutex) {
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMutexQuery(TMutexID mutex, TThreadIDRef ownerref) {
-  if (mutex_array.mutexes[mutex].id != mutex)
+  if (mcb.mutexes[mutex].id != mutex)
     return RVCOS_STATUS_ERROR_INVALID_ID;
   if (ownerref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // Returning the owner
-  *ownerref = mutex_array.mutexes[mutex].owner;
+  *ownerref = mcb.mutexes[mutex].owner;
   return RVCOS_STATUS_SUCCESS;
 }
 
 TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
-  if (mutex_array.mutexes[mutex].id != mutex)
+  if (mcb.mutexes[mutex].id != mutex)
     return RVCOS_STATUS_ERROR_INVALID_ID;
 
   if (timeout == RVCOS_TIMEOUT_IMMEDIATE) {
-    if (mutex_array.mutexes[mutex].state == RVCOS_MUTEX_STATE_LOCKED) {
+    if (mcb.mutexes[mutex].state == RVCOS_MUTEX_STATE_LOCKED) {
       return RVCOS_STATUS_FAILURE;
     }
     return RVCOS_STATUS_SUCCESS;
   }
 
-  if (mutex_array.mutexes[mutex].state == RVCOS_MUTEX_STATE_UNLOCKED) {
+  if (mcb.mutexes[mutex].state == RVCOS_MUTEX_STATE_UNLOCKED) {
     push_back(tcb.threads[curr_running].mutex_id, mutex);
     // Setting the owner
-    mutex_array.mutexes[mutex].owner = curr_running;
+    mcb.mutexes[mutex].owner = curr_running;
     // Setting the state
-    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
+    mcb.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
     return RVCOS_STATUS_SUCCESS;
   } else {
     if (timeout == RVCOS_TIMEOUT_INFINITE) {
@@ -483,7 +484,7 @@ TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
       tcb.threads[curr_running].mutex_timeout = timeout;
     }
     // Adding to the waiting queue
-    push_back_prio(mutex_array.mutexes[mutex].waiting, curr_running);
+    push_back_prio(mcb.mutexes[mutex].waiting, curr_running);
     //  Setting the mutex current thread is waiting on
     tcb.threads[curr_running].waiting_for_mutex = mutex;
     tcb.threads[curr_running].state = RVCOS_THREAD_STATE_WAITING;
@@ -497,38 +498,36 @@ TStatus RVCMutexAcquire(TMutexID mutex, TTick timeout) {
 
 TStatus RVCMutexRelease(TMutexID mutex) {
   // Releaseing the mutex
-  if (mutex_array.mutexes[mutex].id != mutex)
+  if (mcb.mutexes[mutex].id != mutex)
     return RVCOS_STATUS_ERROR_INVALID_ID;
-  if (mutex_array.mutexes[mutex].state != RVCOS_MUTEX_STATE_LOCKED)
+  if (mcb.mutexes[mutex].state != RVCOS_MUTEX_STATE_LOCKED)
     return RVCOS_STATUS_FAILURE;
-  if (mutex_array.mutexes[mutex].owner != curr_running)
+  if (mcb.mutexes[mutex].owner != curr_running)
     return RVCOS_STATUS_FAILURE;
 
   // Setting the state
-  mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_UNLOCKED;
+  mcb.mutexes[mutex].state = RVCOS_MUTEX_STATE_UNLOCKED;
   // Removing the mutex
   removeT(tcb.threads[curr_running].mutex_id, mutex);
 
   // Checking if there are any threads waiting for the mutex
-  if (pd_size(mutex_array.mutexes[mutex].waiting) > 0) {
+  if (pd_size(mcb.mutexes[mutex].waiting) > 0) {
     // Setting the owner
-    mutex_array.mutexes[mutex].owner =
-        pop_front_prio(mutex_array.mutexes[mutex].waiting);
+    mcb.mutexes[mutex].owner = pop_front_prio(mcb.mutexes[mutex].waiting);
     // Removing from the blocked timeout queue
-    removeT(threads_blocked_on_mutexes, mutex_array.mutexes[mutex].owner);
+    removeT(threads_blocked_on_mutexes, mcb.mutexes[mutex].owner);
     // Setting the state
-    mutex_array.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
+    mcb.mutexes[mutex].state = RVCOS_MUTEX_STATE_LOCKED;
 
-    push_back(tcb.threads[mutex_array.mutexes[mutex].owner].mutex_id, mutex);
+    push_back(tcb.threads[mcb.mutexes[mutex].owner].mutex_id, mutex);
 
-    push_back(tcb.threads[mutex_array.mutexes[mutex].owner].mutex_id, mutex);
+    push_back(tcb.threads[mcb.mutexes[mutex].owner].mutex_id, mutex);
     // Adding to the ready queue
-    tcb.threads[mutex_array.mutexes[mutex].owner].state =
-        RVCOS_THREAD_STATE_READY;
-    push_back_prio(ready_queue, mutex_array.mutexes[mutex].owner);
+    tcb.threads[mcb.mutexes[mutex].owner].state = RVCOS_THREAD_STATE_READY;
+    push_back_prio(ready_queue, mcb.mutexes[mutex].owner);
   } else {
     // Resetting the owner
-    mutex_array.mutexes[mutex].owner = RVCOS_THREAD_ID_INVALID;
+    mcb.mutexes[mutex].owner = RVCOS_THREAD_ID_INVALID;
   }
   scheduler();
   return RVCOS_STATUS_SUCCESS;
@@ -558,6 +557,9 @@ void write_to_videomem(char c) {
       // VIDEO_MEMORY[--cursor] = ' ';
       cursor--;
     }
+  } else if (c == '\r') {
+    // Carriage return
+    cursor -= cursor % 0x40;
   } else if (c == '\n') {
     // Jump to nextline
     cursor += 0x40;
@@ -570,99 +572,119 @@ void write_to_videomem(char c) {
 }
 
 // Outputs charactor based on char_mode
-void output_char(char c) {
-  if (c == '\x1B') {
-    // Setting char_mode to esc
-    char_mode = 1;
-  } else if (c == '[') {
-    // Setting char_mode to [
-    if (char_mode == 1)
-      char_mode = 2;
-    else {
-      write_to_videomem(c);
-    }
-  } else if ((c >= 'A' && c <= 'D') || c == 'H') {
-    // Up, down, left, right
-    if (char_mode == 2) {
-      if (c == 'A') {
-        if (cursor > 0x40)
-          cursor -= 0x40;
-      } else if (c == 'B') {
-        if (cursor <= 0x40 * 35)
-          cursor += 0x40;
-      } else if (c == 'C') {
-        if ((cursor + 1) % 0x40 != 0)
-          cursor += 1;
-      } else if (c == 'D') {
-        if (cursor % 0x40 != 0)
-          cursor -= 1;
-      } else if (c == 'H') {
-        cursor = 0;
+void output_char(const char *buffer, int writesize) {
+  for (int i = 0; i < writesize; i++) {
+    char c = buffer[i];
+    if (c == '\x1B') {
+      // Setting char_mode to esc
+      char_mode = 1;
+    } else if (c == '[') {
+      // Setting char_mode to [
+      if (char_mode == 1)
+        char_mode = 2;
+      else {
+        write_to_videomem(c);
       }
-      char_mode = 0;
-      current_char_list_index = 0;
-    } else if (char_mode == 5 && c == 'H') {
-      int line = 0;
-      int column = 0;
-      int i = 0;
-      for (i = 0; i < current_char_list_index; i++) {
-        if (current_char_list[i] == ';') {
-          break;
-        } else {
-          line = line * 10 + current_char_list[i] - '0';
+    } else if ((c >= 'A' && c <= 'D') || c == 'H') {
+      // Up, down, left, right
+      if (char_mode == 2) {
+        if (c == 'A') {
+          if (cursor > 0x40)
+            cursor -= 0x40;
+        } else if (c == 'B') {
+          if (cursor <= 0x40 * 35)
+            cursor += 0x40;
+        } else if (c == 'C') {
+          if ((cursor + 1) % 0x40 != 0)
+            cursor += 1;
+        } else if (c == 'D') {
+          if (cursor % 0x40 != 0)
+            cursor -= 1;
+        } else if (c == 'H') {
+          cursor = 0;
         }
+        char_mode = 0;
+        current_char_list_index = 0;
+      } else if (char_mode == 5 && c == 'H') {
+        int line = 0;
+        int column = 0;
+        int i = 0;
+        for (i = 0; i < current_char_list_index; i++) {
+          if (current_char_list[i] == ';') {
+            break;
+          } else {
+            line = line * 10 + current_char_list[i] - '0';
+          }
+        }
+        // parse column from current_char_list
+        for (i++; i < current_char_list_index; i++) {
+          column = column * 10 + current_char_list[i] - '0';
+        }
+        // move cursor to line, column
+        cursor = line * 0x40 + column;
+        char_mode = 0;
+        current_char_list_index = 0;
+      } else {
+        write_to_videomem(c);
       }
-      // parse column from current_char_list
-      for (i++; i < current_char_list_index; i++) {
-        column = column * 10 + current_char_list[i] - '0';
-      }
-      // move cursor to line, column
-      cursor = line * 0x40 + column;
+    } else if (char_mode == 3 && current_char_list_index == 1 &&
+               current_char_list[0] == '2' && c == 'J') {
+      // Clear the screen
+      memset((void *)VIDEO_MEMORY, 0, 0x40 * 36);
       char_mode = 0;
       current_char_list_index = 0;
+    } else if (c >= '0' && c <= '9') {
+      if (char_mode == 2 || char_mode == 3) {
+        current_char_list[current_char_list_index++] = c;
+        char_mode = 3;
+      } else if (char_mode == 4 || char_mode == 5) {
+        current_char_list[current_char_list_index++] = c;
+        char_mode = 5;
+      } else {
+        write_to_videomem(c);
+      }
+    } else if (c == ';') {
+      if (char_mode == 3) {
+        current_char_list[current_char_list_index++] = ';';
+        char_mode = 4;
+      } else {
+        write_to_videomem(c);
+      }
     } else {
       write_to_videomem(c);
     }
-  } else if (char_mode == 3 && current_char_list_index == 1 &&
-             current_char_list[0] == '2' && c == 'J') {
-    // Clear the screen
-    memset((void *)VIDEO_MEMORY, 0, 0x40 * 36);
-    char_mode = 0;
-    current_char_list_index = 0;
-  } else if (c >= '0' && c <= '9') {
-    if (char_mode == 2 || char_mode == 3) {
-      current_char_list[current_char_list_index++] = c;
-      char_mode = 3;
-    } else if (char_mode == 4 || char_mode == 5) {
-      current_char_list[current_char_list_index++] = c;
-      char_mode = 5;
-    } else {
-      write_to_videomem(c);
+    if ((cursor) / 0x40 >= 36) {
+      // Shifting everything up when reach end of screen
+      memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
+      cursor -= 0x40;
     }
-  } else if (c == ';') {
-    if (char_mode == 3) {
-      current_char_list[current_char_list_index++] = ';';
-      char_mode = 4;
-    } else {
-      write_to_videomem(c);
-    }
-  } else {
-    write_to_videomem(c);
   }
-  if ((cursor) / 0x40 >= 36) {
-    // Shifting everything up when reach end of screen
-    memmove((void *)VIDEO_MEMORY, (void *)VIDEO_MEMORY + 0x40, 0x40 * 36);
-    cursor -= 0x40;
+}
+
+void video_interrupt_handler(void) {
+  VIP = 0x2;
+  if (text_buffer_queue != NULL) {
+    while (isEmptyTB(text_buffer_queue) == 0) {
+      TextBuffer tb = tb_pop_front(text_buffer_queue);
+      output_char(tb.buffer, tb.writesize);
+      tcb.threads[tb.tid].state = RVCOS_THREAD_STATE_READY;
+      push_back_prio(ready_queue, tb.tid);
+      scheduler();
+    }
   }
 }
 
 TStatus RVCWriteText(const TTextCharacter *buffer, TMemorySize writesize) {
   if (buffer == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  // Looping through the buffer
-  for (uint32_t i = 0; i < writesize; i++) {
-    output_char(buffer[i]);
-  }
+  // Pushing to text_buffer_queue
+  tb_push_back(text_buffer_queue, (TextBuffer){
+                                      .buffer = buffer,
+                                      .writesize = writesize,
+                                      .tid = curr_running,
+                                  });
+  tcb.threads[curr_running].state = RVCOS_THREAD_STATE_WAITING;
+  scheduler();
   return RVCOS_STATUS_SUCCESS;
 }
 

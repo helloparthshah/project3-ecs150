@@ -22,6 +22,56 @@ PrioDeque *pdmalloc() {
   return pd;
 }
 
+TBDeque *tbmalloc() {
+  // Allocating the size of the Deque
+  TBDeque *d;
+  RVCMemoryPoolAllocate(0, sizeof(TBDeque), (void **)&d);
+  if (d != NULL)
+    d->head = d->tail = NULL;
+  return d;
+}
+
+int isEmptyTB(volatile TBDeque *d) {
+  // Checking if head is null
+  if (d->head == NULL)
+    return 1;
+  return 0;
+}
+
+void tb_push_back(volatile TBDeque *d, TextBuffer v) {
+  // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
+  struct TextNode *n;
+  RVCMemoryPoolAllocate(0, sizeof(struct TextNode), (void **)&n);
+  if (n == NULL)
+    return;
+  // Setting the value of the node
+  n->val = v;
+  n->prev = d->tail;
+  n->next = NULL;
+  // If the only node then set to first
+  if (d->head == NULL) {
+    d->head = d->tail = n;
+  } else {
+    // Set next of tail to node and set tail to n
+    d->tail->next = n;
+    d->tail = n;
+  }
+}
+
+TextBuffer tb_pop_front(volatile TBDeque *d) {
+  // Get value
+  TextBuffer v = d->head->val;
+  struct TextNode *n = d->head;
+  if (d->head == d->tail) {
+    d->head = d->tail = NULL;
+  } else
+    // Set head to next
+    d->head = n->next;
+  // free(n);
+  RVCMemoryPoolDeallocate(0, n);
+  return v;
+}
+
 void push_front(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
@@ -218,7 +268,7 @@ void tcb_push_back(volatile TCBArray *a, Thread element) {
   a->threads[a->used++] = element;
 }
 
-void mutex_init(volatile MutexArray *a, size_t initialSize) {
+void mutex_init(volatile MCBArray *a, size_t initialSize) {
   RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
                         (void **)&(a->mutexes));
   // a->mutex = malloc(initialSize * sizeof(Mutex));
@@ -226,7 +276,7 @@ void mutex_init(volatile MutexArray *a, size_t initialSize) {
   a->size = initialSize;
 }
 
-void mutex_push_back(volatile MutexArray *a, Mutex element) {
+void mutex_push_back(volatile MCBArray *a, Mutex element) {
   if (a->used == a->size) {
     a->size *= 2;
     RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->mutexes));
