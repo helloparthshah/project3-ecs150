@@ -113,7 +113,7 @@ int main(){
     RVCThreadActivate(LowThreadID);
     WriteString("Low Activated: ");
     RVCThreadState(LowThreadID,&ThreadState);
-    if(RVCOS_THREAD_STATE_READY != ThreadState){
+    if((RVCOS_THREAD_STATE_READY != ThreadState)&&(RVCOS_THREAD_STATE_WAITING != ThreadState)){
         WriteString("Invalid State\n");
         return 1;
     }

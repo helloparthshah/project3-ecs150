@@ -43,6 +43,7 @@ TThreadReturn HighPriorityThread(void *param){
 int main(){
     TThreadID CurrentThreadID;
     TThreadState ThreadState;
+    TThreadReturn ReturnVal;
 
     WriteString("Main Thread:   ");
     RVCThreadID(&MainThreadID);
@@ -61,6 +62,7 @@ int main(){
     }
     WriteString("Valid State\n");
     RVCThreadActivate(HighThreadID);
+    while(RVCOS_STATUS_SUCCESS != RVCThreadWait(HighThreadID, &ReturnVal, RVCOS_TIMEOUT_IMMEDIATE));
     WriteString("Checking High: ");
     RVCThreadState(HighThreadID,&ThreadState);
     if(RVCOS_THREAD_STATE_DEAD != ThreadState){
