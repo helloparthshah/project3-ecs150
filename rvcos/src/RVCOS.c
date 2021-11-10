@@ -208,9 +208,9 @@ TStatus RVCInitialize(uint32_t *gp) {
 
   // Create idle thread
   void *ptr;
-  TMemoryPoolID mpid;
-  RVCMemoryPoolCreate(ptr, 1024, &mpid);
-  RVCMemoryPoolAllocate(mpid, 1024, &ptr);
+  TMemoryPoolIDRef mpid;
+  RVCMemoryPoolCreate(ptr, 1024, mpid);
+  RVCMemoryPoolAllocate(*mpid, 1024, &ptr);
   tcb_push_back(&tcb, (Thread){
                           .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
                           .param = 0,
