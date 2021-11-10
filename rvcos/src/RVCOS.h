@@ -36,6 +36,8 @@
 
 #define RVCOS_MUTEX_ID_INVALID ((TMutexID)-1)
 
+#define MIN_ALLOCATION_COUNT 0x40
+
 typedef uint32_t TStatus, *TStatusRef;
 typedef uint32_t TTick, *TTickRef;
 typedef int32_t TThreadReturn, *TThreadReturnRef;
@@ -51,6 +53,36 @@ typedef char TTextCharacter, *TTextCharacterRef;
 typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
+
+typedef struct freeNodeStruct freeNode, *freeNodeRef;
+
+struct freeNodeStruct {
+  struct freeNodeStruct *DNext;
+};
+
+typedef struct {
+  int DCount;
+  TMemorySize DStructureSize;
+  freeNodeRef DFirstFree;
+} allocStruct, *allocStructRef;
+
+void AllocStructInit(volatile allocStructRef alloc, TMemorySize size);
+
+typedef struct {
+  int DX;
+  int DY;
+  int DZ;
+} SThreeDPos, *SThreeDPosRef;
+
+typedef struct {
+  uint32_t id;
+  int DSize;
+  void *DBase;
+} SMemoryPoolFreeChunk, *SMemoryPoolFreeChunkRef;
+
+// SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
+void *AllocStructAllocate(allocStructRef alloc);
+void AllocStructDeallocate(volatile allocStructRef alloc, void *obj);
 
 typedef struct {
   uint32_t DLeft : 1;

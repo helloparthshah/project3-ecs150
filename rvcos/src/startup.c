@@ -1,4 +1,4 @@
-#include "Deque.h"
+#include "RVCOS.h"
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -96,10 +96,10 @@ void c_interrupt_handler(void) {
     NewCompare += RVCOS_TICKS_MS;
     MTIMECMP_HIGH = NewCompare >> 32;
     MTIMECMP_LOW = NewCompare;
-    // if (CONTROLLER & 0x1) {
-    ticks++;
-    dec_tick();
-    scheduler();
-    // }
+    if (CONTROLLER & 0x1) {
+      ticks++;
+      dec_tick();
+      scheduler();
+    }
   }
 }

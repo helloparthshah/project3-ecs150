@@ -39,6 +39,7 @@ TARGET_OBJS =   $(OBJ_DIR)/main.o               \
                 $(OBJ_DIR)/interrupt.o          \
                 $(OBJ_DIR)/enter_cartridge.o	\
                 $(OBJ_DIR)/Deque.o				\
+                $(OBJ_DIR)/memoryPool.o			\
                 $(OBJ_DIR)/RVCOS.o				\
                 $(OBJ_DIR)/startup.o
 

@@ -7,7 +7,8 @@ Deque *dmalloc() {
   // Allocating the size of the Deque
   // Deque *d = (Deque *)malloc(sizeof(Deque));
   Deque *d;
-  RVCMemoryPoolAllocate(0, sizeof(Deque), (void **)&d);
+  RVCMemoryPoolCreate(d, sizeof(Deque), &(d->mPoolID));
+  RVCMemoryPoolAllocate(d->mPoolID, sizeof(Deque), (void **)&d);
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -15,7 +16,8 @@ Deque *dmalloc() {
 
 PrioDeque *pdmalloc() {
   PrioDeque *pd;
-  RVCMemoryPoolAllocate(0, sizeof(PrioDeque), (void **)&pd);
+  RVCMemoryPoolCreate(pd, sizeof(PrioDeque), &(pd->mPoolID));
+  RVCMemoryPoolAllocate(pd->mPoolID, sizeof(PrioDeque), (void **)&pd);
   pd->high = dmalloc();
   pd->norm = dmalloc();
   pd->low = dmalloc();
@@ -25,7 +27,8 @@ PrioDeque *pdmalloc() {
 TBDeque *tbmalloc() {
   // Allocating the size of the Deque
   TBDeque *d;
-  RVCMemoryPoolAllocate(0, sizeof(TBDeque), (void **)&d);
+  (RVCMemoryPoolCreate(d, sizeof(TBDeque), NULL));
+  RVCMemoryPoolAllocate(d->mPoolID, sizeof(TBDeque), (void **)&d);
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -41,7 +44,8 @@ int isEmptyTB(volatile TBDeque *d) {
 void tb_push_back(volatile TBDeque *d, TextBuffer v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct TextNode *n;
-  RVCMemoryPoolAllocate(0, sizeof(struct TextNode), (void **)&n);
+  RVCMemoryPoolCreate(n, sizeof(struct TextNode), &(n->mPoolID));
+  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct TextNode), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -68,14 +72,15 @@ TextBuffer tb_pop_front(volatile TBDeque *d) {
     // Set head to next
     d->head = n->next;
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
+  RVCMemoryPoolDeallocate(n->mPoolID, n);
   return v;
 }
 
 void push_front(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
-  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
+  RVCMemoryPoolCreate(n, sizeof(struct Node), &(n->mPoolID));
+  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct Node), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -96,7 +101,8 @@ void push_front(volatile Deque *d, TThreadID v) {
 void push_back(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
-  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
+  RVCMemoryPoolCreate(n, sizeof(struct Node), &(n->mPoolID));
+  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct Node), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -146,7 +152,7 @@ void removeT(volatile Deque *d, TThreadID v) {
       d->tail = n->prev;
   }
   // free(n);
-  // RVCMemoryPoolDeallocate(0, n);
+  RVCMemoryPoolDeallocate(n->mPoolID, n);
 }
 
 TThreadID pop_front(volatile Deque *d) {
@@ -159,7 +165,7 @@ TThreadID pop_front(volatile Deque *d) {
     // Set head to next
     d->head = n->next;
   // free(n);
-  RVCMemoryPoolDeallocate(0, n);
+  RVCMemoryPoolDeallocate(n->mPoolID, n);
   return v;
 }
 
@@ -172,7 +178,7 @@ TThreadID pop_back(volatile Deque *d) {
     // Set tail to prev
     d->tail = n->prev;
   // free(n);
-  // RVCMemoryPoolDeallocate(0, n);
+  RVCMemoryPoolDeallocate(n->mPoolID, n);
   return v;
 }
 
@@ -252,7 +258,8 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
 }
 
 void tcb_init(volatile TCBArray *a, size_t initialSize) {
-  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+  RVCMemoryPoolCreate(a->threads, sizeof(Thread), (uint32_t *)&(a->mPoolID));
+  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(Thread),
                         (void **)&(a->threads));
   // a->threads = malloc(initialSize * sizeof(Thread));
   a->used = 0;
@@ -262,14 +269,42 @@ void tcb_init(volatile TCBArray *a, size_t initialSize) {
 void tcb_push_back(volatile TCBArray *a, Thread element) {
   if (a->used == a->size) {
     a->size *= 2;
-    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
+    RVCMemoryPoolAllocate(a->mPoolID, a->size * sizeof(Thread),
+                          (void **)&(a->threads));
     // a->threads = realloc(a->threads, a->size * sizeof(Thread));
   }
   a->threads[a->used++] = element;
 }
 
+extern volatile allocStruct freeChunks;
+
+void mp_init(volatile MemoryPoolArray *a, size_t initialSize) {
+  a->used = 0;
+  a->size = initialSize;
+
+  // a->chunks = malloc(initialSize * sizeof(SMemoryPoolFreeChunk));
+  RVCMemoryPoolCreate(a->chunks, sizeof(SMemoryPoolFreeChunk),
+                      (uint32_t *)&(a->mPoolID));
+  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(SMemoryPoolFreeChunk),
+                        (void **)&(a->chunks));
+
+  /* for (int i = 0; i < initialSize; i++)
+    AllocStructDeallocate((allocStructRef)&freeChunks, (void *)&(a->chunks[i])); */
+}
+
+void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {
+  if (a->used == a->size) {
+    a->size *= 2;
+    RVCMemoryPoolAllocate(a->mPoolID, a->size * sizeof(SMemoryPoolFreeChunk),
+                          (void **)&(a->chunks));
+    // a->threads = realloc(a->threads, a->size * sizeof(Thread));
+  }
+  a->chunks[a->used++] = element;
+}
+
 void mutex_init(volatile MCBArray *a, size_t initialSize) {
-  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
+  RVCMemoryPoolCreate(a->mutexes, sizeof(Mutex), (uint32_t *)&(a->mPoolID));
+  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(Mutex),
                         (void **)&(a->mutexes));
   // a->mutex = malloc(initialSize * sizeof(Mutex));
   a->used = 0;
@@ -279,7 +314,8 @@ void mutex_init(volatile MCBArray *a, size_t initialSize) {
 void mutex_push_back(volatile MCBArray *a, Mutex element) {
   if (a->used == a->size) {
     a->size *= 2;
-    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->mutexes));
+    RVCMemoryPoolAllocate(a->mPoolID, a->size * sizeof(Mutex),
+                          (void **)&(a->mutexes));
     // a->mutexes = realloc(a->mutexes, a->size * sizeof(Mutex));
   }
   a->mutexes[a->used++] = element;

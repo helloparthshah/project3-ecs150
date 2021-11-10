@@ -1,5 +1,6 @@
 #include "RVCOS.h"
 #include "Deque.h"
+#include <stdint.h>
 #include <string.h>
 
 #define CONTROLLER (*((volatile uint32_t *)0x40000018))
@@ -15,6 +16,9 @@ volatile TBDeque *text_buffer_queue;
 volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 volatile int curr_running = 0;
+
+// volatile allocStruct freeChunks;
+volatile MemoryPoolArray InitialFreeChunks;
 
 volatile char *VIDEO_MEMORY = (volatile char *)(0x50000000 + 0xFE800);
 
@@ -183,8 +187,12 @@ TStatus RVCInitialize(uint32_t *gp) {
   cart_gp = (uint32_t)gp;
   // Resetting the ticks
   ticks = 0;
+  // Initializing the system memory pool
+  // AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
+  mp_init(&InitialFreeChunks, 256);
   // Initializing the ready queue
   ready_queue = pdmalloc();
+  writei(ready_queue->mPoolID, 1);
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
   threads_blocked_on_mutexes = dmalloc();
@@ -199,7 +207,9 @@ TStatus RVCInitialize(uint32_t *gp) {
 
   // Create idle thread
   void *ptr;
-  RVCMemoryPoolAllocate(0, 1024, &ptr);
+  TMemoryPoolID mpid;
+  RVCMemoryPoolCreate(ptr, 1024, &mpid);
+  RVCMemoryPoolAllocate(mpid, 1024, &ptr);
   tcb_push_back(&tcb, (Thread){
                           .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
                           .param = 0,
@@ -278,7 +288,9 @@ TStatus RVCThreadActivate(TThreadID thread) {
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
   void *ptr;
-  RVCMemoryPoolAllocate(thread, tcb.threads[thread].memsize, &ptr);
+  TMemoryPoolID mpid;
+  RVCMemoryPoolCreate(ptr, tcb.threads[thread].memsize, &mpid);
+  RVCMemoryPoolAllocate(mpid, tcb.threads[thread].memsize, &ptr);
   tcb.threads[thread].ctx =
       initialize_stack(ptr + tcb.threads[thread].memsize, skeleton,
                        tcb.threads[thread].param, thread);
@@ -398,33 +410,6 @@ TStatus RVCThreadState(TThreadID thread, TThreadStateRef stateref) {
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   // returning the state
   *stateref = tcb.threads[thread].state;
-  return RVCOS_STATUS_SUCCESS;
-}
-
-TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
-                            TMemoryPoolIDRef memoryref) {
-  if (base == NULL || size == 0 || memoryref == NULL)
-    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-
-  // Creating the memory pool
-  // MemoryPool mp = (MemoryPool)malloc(sizeof(struct memory_pool));
-  return RVCOS_STATUS_SUCCESS;
-}
-TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
-  return RVCOS_STATUS_SUCCESS;
-}
-TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
-  return RVCOS_STATUS_SUCCESS;
-}
-TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
-                              void **pointer) {
-  // Allocates space using malloc
-  *pointer = (void *)((u_int8_t *)malloc(size));
-  return RVCOS_STATUS_SUCCESS;
-}
-TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
-  // frees the memory
-  free(pointer);
   return RVCOS_STATUS_SUCCESS;
 }
 

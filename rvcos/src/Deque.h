@@ -9,17 +9,20 @@ struct Node {
   struct Node *next;
   struct Node *prev;
   TThreadID val;
+  uint32_t mPoolID;
 };
 
 typedef struct {
   struct Node *head;
   struct Node *tail;
+  uint32_t mPoolID;
 } Deque;
 
 typedef struct {
   Deque *high;
   Deque *norm;
   Deque *low;
+  uint32_t mPoolID;
 } PrioDeque;
 
 typedef struct {
@@ -50,13 +53,22 @@ typedef struct {
   Thread *threads;
   size_t used;
   size_t size;
+  uint32_t mPoolID;
 } TCBArray;
 
 typedef struct {
   Mutex *mutexes;
   size_t used;
   size_t size;
+  uint32_t mPoolID;
 } MCBArray;
+
+typedef struct {
+  SMemoryPoolFreeChunk *chunks;
+  size_t used;
+  size_t size;
+  uint32_t mPoolID;
+} MemoryPoolArray;
 
 // Struct for video controller
 typedef struct {
@@ -69,11 +81,13 @@ struct TextNode {
   struct TextNode *next;
   struct TextNode *prev;
   TextBuffer val;
+  uint32_t mPoolID;
 };
 
 typedef struct {
   struct TextNode *head;
   struct TextNode *tail;
+  uint32_t mPoolID;
 } TBDeque;
 
 void tb_push_back(volatile TBDeque *d, TextBuffer v);
@@ -85,6 +99,9 @@ void tcb_push_back(volatile TCBArray *a, Thread element);
 
 void mutex_init(volatile MCBArray *a, size_t initialSize);
 void mutex_push_back(volatile MCBArray *a, Mutex element);
+
+void mp_init(volatile MemoryPoolArray *a, size_t initialSize);
+void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element);
 
 Deque *dmalloc();
 PrioDeque *pdmalloc();
