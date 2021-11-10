@@ -36,10 +36,11 @@ void WriteInt(int val){
 }
 
 int main() {
-    int Index, Inner;
+    int Index, Inner, Groups;
     int *Pointers[4];
     int *MemoryBase;
     TMemoryPoolID MemoryPoolID;
+    TMemorySize AvailableSpace;
     
     WriteString("Allocating pool: ");
     if(RVCOS_STATUS_SUCCESS != RVCMemoryAllocate(256, (void **)&MemoryBase)){
@@ -51,7 +52,15 @@ int main() {
         RVCMemoryPoolDeallocate(RVCOS_MEMORY_POOL_ID_SYSTEM, MemoryBase);
         WriteString("Failed to create memory pool\n");
         return -1;
-    }        
+    }
+    WriteString("Done\nQuerying space: ");        
+    if(RVCOS_STATUS_SUCCESS != RVCMemoryPoolQuery(MemoryPoolID,&AvailableSpace)){
+        WriteString("Failed to query memory pool\n");
+        RVCMemoryPoolDelete(MemoryPoolID);
+        RVCMemoryDeallocate(MemoryBase);
+        return -1;
+    }
+    Groups = 256 == AvailableSpace ? 4 : 2;
     WriteString("Done\nAllocating spaces: ");
     for(Index = 0; Index < 4; Index++){
         if(RVCOS_STATUS_SUCCESS != RVCMemoryPoolAllocate(MemoryPoolID, 64, (void **)&Pointers[Index])){
@@ -77,12 +86,12 @@ int main() {
         }
     }
     WriteString("Done\nAllocating full space: ");   
-    if(RVCOS_STATUS_SUCCESS != RVCMemoryPoolAllocate(MemoryPoolID, 256, (void **)&Pointers[0])){
+    if(RVCOS_STATUS_SUCCESS != RVCMemoryPoolAllocate(MemoryPoolID, AvailableSpace, (void **)&Pointers[0])){
         WriteString("Failed to allocate full space\n");
         return -1;
     }
     WriteString("Done\nPrinting values:");
-    for(Index = 0; Index < (256 / sizeof(int)); Index++){
+    for(Index = 0; Index < (AvailableSpace / sizeof(int)); Index++){
         WriteInt(Pointers[0][Index]);
     }
     WriteString("\nDeallocating space: "); 
