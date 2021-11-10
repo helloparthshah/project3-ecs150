@@ -87,7 +87,7 @@ TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
 TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
   if (memory >= memory_pool_array.used || bytesleft == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  *bytesleft = 0x40 - memory_pool_array.chunks[memory].DSize;
+  *bytesleft = MIN_ALLOCATION_COUNT - memory_pool_array.chunks[memory].DSize;
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
@@ -95,9 +95,9 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   if (memory >= memory_pool_array.used || size == 0 || pointer == NULL) {
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   }
-  if (memory_pool_array.chunks[memory].DSize + size >
-      MAX_POOLS * MIN_ALLOCATION_COUNT * freeChunks.DStructureSize)
-    return RVCOS_STATUS_ERROR_INSUFFICIENT_RESOURCES;
+  /* if (size >= MIN_ALLOCATION_COUNT * freeChunks.DStructureSize -
+                  memory_pool_array.chunks[memory].DSize)
+    return RVCOS_STATUS_ERROR_INSUFFICIENT_RESOURCES; */
 
   // Allocates space using malloc
   // writei(freeChunks.DCount, 20);
