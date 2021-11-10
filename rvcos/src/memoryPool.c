@@ -66,7 +66,6 @@ void AllocStructDeallocate(volatile allocStructRef alloc, void *obj) {
 
 void writei(uint32_t, uint32_t);
 void write(char *, uint32_t);
-volatile int line = 0;
 
 TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                             TMemoryPoolIDRef memoryref) {
@@ -98,7 +97,7 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   }
 
   // Allocates space using malloc
-  writei(memory, line++);
+  writei(memory, 17);
   memory_pool_array.chunks[memory].DSize += size;
   *pointer = malloc(size);
   // *pointer = (void *)((uint8_t *)malloc(size));
