@@ -7,10 +7,12 @@ Deque *dmalloc() {
   // Allocating the size of the Deque
   // Deque *d = (Deque *)malloc(sizeof(Deque));
   Deque *d;
-  TMemoryPoolIDRef p = malloc(sizeof(TMemoryPoolID));
-  RVCMemoryPoolCreate(d, sizeof(Deque), p);
-  RVCMemoryPoolAllocate(*p, sizeof(Deque), (void **)&d);
-  free(p);
+  // TMemoryPoolIDRef p = malloc(sizeof(TMemoryPoolID));
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(d, sizeof(Deque), &p);
+  RVCMemoryPoolAllocate(p, sizeof(Deque), (void **)&d);
+  d->mPoolID = p;
+  // free(p);
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -18,8 +20,10 @@ Deque *dmalloc() {
 
 PrioDeque *pdmalloc() {
   PrioDeque *pd;
-  RVCMemoryPoolCreate(pd, sizeof(PrioDeque), &(pd->mPoolID));
-  RVCMemoryPoolAllocate(pd->mPoolID, sizeof(PrioDeque), (void **)&pd);
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(pd, sizeof(PrioDeque), &p);
+  RVCMemoryPoolAllocate(p, sizeof(PrioDeque), (void **)&pd);
+  pd->mPoolID = p;
   pd->high = dmalloc();
   pd->norm = dmalloc();
   pd->low = dmalloc();
@@ -29,9 +33,10 @@ PrioDeque *pdmalloc() {
 TBDeque *tbmalloc() {
   // Allocating the size of the Deque
   TBDeque *d;
-  RVCMemoryPoolCreate(d, sizeof(TBDeque), &(d->mPoolID));
-  RVCMemoryPoolAllocate(d->mPoolID, sizeof(TBDeque), (void **)&d);
-
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(d, sizeof(TBDeque), &p);
+  RVCMemoryPoolAllocate(p, sizeof(TBDeque), (void **)&d);
+  d->mPoolID = p;
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -47,8 +52,10 @@ int isEmptyTB(volatile TBDeque *d) {
 void tb_push_back(volatile TBDeque *d, TextBuffer v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct TextNode *n;
-  RVCMemoryPoolCreate(n, sizeof(struct TextNode), &(n->mPoolID));
-  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct TextNode), (void **)&n);
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(n, sizeof(struct TextNode), &p);
+  RVCMemoryPoolAllocate(p, sizeof(struct TextNode), (void **)&n);
+  n->mPoolID = p;
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -82,8 +89,10 @@ TextBuffer tb_pop_front(volatile TBDeque *d) {
 void push_front(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
-  RVCMemoryPoolCreate(n, sizeof(struct Node), &(n->mPoolID));
-  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct Node), (void **)&n);
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(n, sizeof(struct Node), &p);
+  RVCMemoryPoolAllocate(p, sizeof(struct Node), (void **)&n);
+  n->mPoolID = p;
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -104,8 +113,10 @@ void push_front(volatile Deque *d, TThreadID v) {
 void push_back(volatile Deque *d, TThreadID v) {
   // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
-  RVCMemoryPoolCreate(n, sizeof(struct Node), &(n->mPoolID));
-  RVCMemoryPoolAllocate(n->mPoolID, sizeof(struct Node), (void **)&n);
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(n, sizeof(struct Node), &p);
+  RVCMemoryPoolAllocate(p, sizeof(struct Node), (void **)&n);
+  n->mPoolID = p;
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -261,9 +272,11 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
 }
 
 void tcb_init(volatile TCBArray *a, size_t initialSize) {
-  RVCMemoryPoolCreate(a->threads, sizeof(Thread), (uint32_t *)&(a->mPoolID));
-  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(Thread),
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(a->threads, initialSize * sizeof(Thread), &p);
+  RVCMemoryPoolAllocate(p, initialSize * sizeof(Thread),
                         (void **)&(a->threads));
+  a->mPoolID = p;
   // a->threads = malloc(initialSize * sizeof(Thread));
   a->used = 0;
   a->size = initialSize;
@@ -279,12 +292,10 @@ void tcb_push_back(volatile TCBArray *a, Thread element) {
   a->threads[a->used++] = element;
 }
 
-extern volatile allocStruct freeChunks;
+// extern volatile allocStruct freeChunks;
 
-void mp_init(volatile MemoryPoolArray *a, size_t initialSize) {
+void mp_init(volatile MemoryPoolArray *a) {
   a->used = 0;
-  a->size = initialSize;
-
   /* for (int i = 0; i < initialSize; i++)
     AllocStructDeallocate((allocStructRef)&freeChunks, (void *)&(a->chunks[i]));
   */
@@ -295,9 +306,10 @@ void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {
 }
 
 void mutex_init(volatile MCBArray *a, size_t initialSize) {
-  RVCMemoryPoolCreate(a->mutexes, sizeof(Mutex), (uint32_t *)&(a->mPoolID));
-  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(Mutex),
-                        (void **)&(a->mutexes));
+  uint32_t p = 0;
+  RVCMemoryPoolCreate(a->mutexes, initialSize * sizeof(Mutex), &p);
+  RVCMemoryPoolAllocate(p, initialSize * sizeof(Mutex), (void **)&(a->mutexes));
+  a->mPoolID = p;
   // a->mutex = malloc(initialSize * sizeof(Mutex));
   a->used = 0;
   a->size = initialSize;

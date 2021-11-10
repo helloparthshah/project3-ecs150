@@ -35,7 +35,7 @@ typedef struct {
 
 allocStruct freeChunks;
 int SuspendAllocationOfFreeChunks = 0;
-SMemoryPoolFreeChunk InitialFreeChunks[5];
+SMemoryPoolFreeChunk memory_pool_array[5];
 
 SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
 void DeallocateFreeChunk(SMemoryPoolFreeChunkRef chunk);
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 
   AllocStructInit(&freeChunks, sizeof(SMemoryPoolFreeChunk));
   for (int Index = 0; Index < 5; Index++) {
-    DeallocateFreeChunk(&InitialFreeChunks[Index]);
+    DeallocateFreeChunk(&memory_pool_array[Index]);
   }
   for (int Index = 0; Index < MIN_ALLOCATION_COUNT * 2; Index++) {
     Array[Index] = AllocateFreeChunk();

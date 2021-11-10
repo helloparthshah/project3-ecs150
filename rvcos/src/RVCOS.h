@@ -54,7 +54,7 @@ typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
 
-typedef struct freeNodeStruct freeNode, *freeNodeRef;
+/* typedef struct freeNodeStruct freeNode, *freeNodeRef;
 
 struct freeNodeStruct {
   struct freeNodeStruct *DNext;
@@ -72,7 +72,7 @@ typedef struct {
   int DX;
   int DY;
   int DZ;
-} SThreeDPos, *SThreeDPosRef;
+} SThreeDPos, *SThreeDPosRef; */
 
 typedef struct {
   uint32_t id;
@@ -80,9 +80,9 @@ typedef struct {
   void *DBase;
 } SMemoryPoolFreeChunk, *SMemoryPoolFreeChunkRef;
 
-SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
+/* SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
 void *AllocStructAllocate(allocStructRef alloc);
-void AllocStructDeallocate(volatile allocStructRef alloc, void *obj);
+void AllocStructDeallocate(volatile allocStructRef alloc, void *obj); */
 
 typedef struct {
   uint32_t DLeft : 1;

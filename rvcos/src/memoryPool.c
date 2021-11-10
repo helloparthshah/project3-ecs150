@@ -4,10 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern volatile allocStruct freeChunks;
-extern volatile MemoryPoolArray InitialFreeChunks;
+// extern volatile allocStruct freeChunks;
+extern volatile MemoryPoolArray memory_pool_array;
 
-void AllocStructInit(volatile allocStructRef alloc, TMemorySize size) {
+/* void AllocStructInit(volatile allocStructRef alloc, TMemorySize size) {
   alloc->DCount = 0;
   alloc->DStructureSize = size;
   alloc->DFirstFree = NULL;
@@ -62,7 +62,7 @@ void AllocStructDeallocate(volatile allocStructRef alloc, void *obj) {
   alloc->DCount++;
   OldStruct->DNext = alloc->DFirstFree;
   alloc->DFirstFree = OldStruct;
-}
+} */
 
 void writei(uint32_t, uint32_t);
 void write(char *, uint32_t);
@@ -74,11 +74,11 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
 
   // Creating the memory pool and pushing into array
-  *memoryref = InitialFreeChunks.used;
-  mp_push_back(&InitialFreeChunks, (SMemoryPoolFreeChunk){
+  *memoryref = memory_pool_array.used;
+  mp_push_back(&memory_pool_array, (SMemoryPoolFreeChunk){
                                        .DBase = base,
                                        .DSize = size,
-                                       .id = InitialFreeChunks.used,
+                                       .id = memory_pool_array.used,
                                    });
   return RVCOS_STATUS_SUCCESS;
 }
@@ -86,18 +86,22 @@ TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
-  *bytesleft = 0x40 - InitialFreeChunks.chunks[memory].DSize;
+  *bytesleft = 0x40 - memory_pool_array.chunks[memory].DSize;
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
                               void **pointer) {
-  if (memory >= InitialFreeChunks.used || size == 0 || pointer == NULL)
+  if (memory >= memory_pool_array.used || size == 0 || pointer == NULL) {
+    write("Fail", 15);
+    writei(memory, 16);
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+  }
 
   // Allocates space using malloc
-  writei(InitialFreeChunks.chunks[memory].id, line++);
-  InitialFreeChunks.chunks[memory].DSize += size;
-  *pointer = (void *)((uint8_t *)malloc(size));
+  writei(memory, line++);
+  memory_pool_array.chunks[memory].DSize += size;
+  *pointer = malloc(size);
+  // *pointer = (void *)((uint8_t *)malloc(size));
   // *pointer = (void *)AllocateFreeChunk();
   return RVCOS_STATUS_SUCCESS;
 }

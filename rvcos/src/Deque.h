@@ -66,7 +66,6 @@ typedef struct {
 typedef struct {
   SMemoryPoolFreeChunk chunks[256];
   size_t used;
-  size_t size;
 } MemoryPoolArray;
 
 // Struct for video controller
@@ -99,7 +98,7 @@ void tcb_push_back(volatile TCBArray *a, Thread element);
 void mutex_init(volatile MCBArray *a, size_t initialSize);
 void mutex_push_back(volatile MCBArray *a, Mutex element);
 
-void mp_init(volatile MemoryPoolArray *a, size_t initialSize);
+void mp_init(volatile MemoryPoolArray *a);
 void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element);
 
 Deque *dmalloc();
