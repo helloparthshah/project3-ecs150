@@ -9,20 +9,17 @@ struct Node {
   struct Node *next;
   struct Node *prev;
   TThreadID val;
-  uint32_t mPoolID;
 };
 
 typedef struct {
   struct Node *head;
   struct Node *tail;
-  uint32_t mPoolID;
 } Deque;
 
 typedef struct {
   Deque *high;
   Deque *norm;
   Deque *low;
-  uint32_t mPoolID;
 } PrioDeque;
 
 typedef struct {
@@ -53,18 +50,16 @@ typedef struct {
   Thread *threads;
   size_t used;
   size_t size;
-  uint32_t mPoolID;
 } TCBArray;
 
 typedef struct {
   Mutex *mutexes;
   size_t used;
   size_t size;
-  uint32_t mPoolID;
 } MCBArray;
 
 typedef struct {
-  SMemoryPoolFreeChunk chunks[256];
+  SMemoryPoolFreeChunk chunks[MAX_POOLS];
   size_t used;
 } MemoryPoolArray;
 
@@ -79,13 +74,11 @@ struct TextNode {
   struct TextNode *next;
   struct TextNode *prev;
   TextBuffer val;
-  uint32_t mPoolID;
 };
 
 typedef struct {
   struct TextNode *head;
   struct TextNode *tail;
-  uint32_t mPoolID;
 } TBDeque;
 
 void tb_push_back(volatile TBDeque *d, TextBuffer v);

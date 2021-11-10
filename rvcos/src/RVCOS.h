@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #define RVCOS_TICKS_MS 200
+#define MIN_ALLOCATION_COUNT 0x40
+#define MAX_POOLS 1024
 
 #define RVCOS_STATUS_FAILURE ((TStatus)0x00)
 #define RVCOS_STATUS_SUCCESS ((TStatus)0x01)
@@ -36,7 +38,6 @@
 
 #define RVCOS_MUTEX_ID_INVALID ((TMutexID)-1)
 
-#define MIN_ALLOCATION_COUNT 0x40
 
 typedef uint32_t TStatus, *TStatusRef;
 typedef uint32_t TTick, *TTickRef;
@@ -54,7 +55,7 @@ typedef uint32_t TMemoryPoolID, *TMemoryPoolIDRef;
 
 typedef TThreadReturn (*TThreadEntry)(void *);
 
-/* typedef struct freeNodeStruct freeNode, *freeNodeRef;
+typedef struct freeNodeStruct freeNode, *freeNodeRef;
 
 struct freeNodeStruct {
   struct freeNodeStruct *DNext;
@@ -72,7 +73,7 @@ typedef struct {
   int DX;
   int DY;
   int DZ;
-} SThreeDPos, *SThreeDPosRef; */
+} SThreeDPos, *SThreeDPosRef;
 
 typedef struct {
   uint32_t id;
@@ -80,9 +81,9 @@ typedef struct {
   void *DBase;
 } SMemoryPoolFreeChunk, *SMemoryPoolFreeChunkRef;
 
-/* SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
+SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
 void *AllocStructAllocate(allocStructRef alloc);
-void AllocStructDeallocate(volatile allocStructRef alloc, void *obj); */
+void AllocStructDeallocate(volatile allocStructRef alloc, void *obj);
 
 typedef struct {
   uint32_t DLeft : 1;

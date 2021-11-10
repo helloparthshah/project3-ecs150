@@ -17,7 +17,7 @@ volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 volatile int curr_running = 0;
 
-// volatile allocStruct freeChunks;
+volatile allocStruct freeChunks;
 volatile MemoryPoolArray memory_pool_array;
 
 volatile char *VIDEO_MEMORY = (volatile char *)(0x50000000 + 0xFE800);
@@ -101,7 +101,8 @@ TThreadReturn idleThread(void *param) {
 void dec_tick() {
   // Looping through the threads to check which are sleeping
   // Loop through threads_sleeping and decrement sleep_for
-  int s = size(threads_sleeping);
+  int s = 0;
+  s = size(threads_sleeping);
   for (int i = 0; i < s; i++) {
     TThreadID t = pop_front(threads_sleeping);
     if (tcb.threads[t].sleep_for == 0) {
@@ -124,6 +125,7 @@ void dec_tick() {
       push_back(threads_waiting, t);
     }
   }
+
   s = size(threads_blocked_on_mutexes);
   for (int i = 0; i < s; i++) {
     TThreadID t = pop_front(threads_blocked_on_mutexes);
@@ -182,6 +184,8 @@ void scheduler() {
 
 extern volatile int line;
 
+extern uint8_t _heap_base;
+
 TStatus RVCInitialize(uint32_t *gp) {
   if (gp == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
@@ -190,8 +194,10 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Resetting the ticks
   ticks = 0;
   // Initializing the system memory pool
-  // AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
+  AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
   mp_init(&memory_pool_array);
+  uint32_t p;
+  RVCMemoryPoolCreate(&_heap_base, MIN_ALLOCATION_COUNT, &p);
   // Initializing the ready queue
   ready_queue = pdmalloc();
   threads_sleeping = dmalloc();
@@ -208,9 +214,9 @@ TStatus RVCInitialize(uint32_t *gp) {
 
   // Create idle thread
   void *ptr;
-  uint32_t p;
-  RVCMemoryPoolCreate(ptr, 1024, &p);
-  RVCMemoryPoolAllocate(p, 1024, &ptr);
+  // uint32_t p;
+  // RVCMemoryPoolCreate(ptr, 1024, &p);
+  RVCMemoryPoolAllocate(0, 1024, &ptr);
   tcb_push_back(&tcb, (Thread){
                           .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
                           .param = 0,
@@ -289,9 +295,9 @@ TStatus RVCThreadActivate(TThreadID thread) {
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
   void *ptr;
-  uint32_t mpid;
-  RVCMemoryPoolCreate(ptr, tcb.threads[thread].memsize, &mpid);
-  RVCMemoryPoolAllocate(mpid, tcb.threads[thread].memsize, &ptr);
+  // uint32_t mpid;
+  // RVCMemoryPoolCreate(ptr, tcb.threads[thread].memsize, &mpid);
+  RVCMemoryPoolAllocate(0, tcb.threads[thread].memsize, &ptr);
   tcb.threads[thread].ctx =
       initialize_stack(ptr + tcb.threads[thread].memsize, skeleton,
                        tcb.threads[thread].param, thread);
@@ -321,6 +327,7 @@ TStatus RVCThreadTerminate(TThreadID thread, TThreadReturn returnval) {
         tcb.threads[wid].wait_timeout = 0;
         removeT(threads_waiting, wid);
         push_back_prio(ready_queue, wid);
+        scheduler();
       }
     }
   }
@@ -369,6 +376,8 @@ TStatus RVCThreadWait(TThreadID thread, TThreadReturnRef returnref,
     push_back(threads_waiting, wid);
   }
 
+  // remove_prio(ready_queue, wid);
+
   // Scheduling till it's dead
   while (tcb.threads[thread].state != RVCOS_THREAD_STATE_DEAD) {
     scheduler();
@@ -383,18 +392,19 @@ TStatus RVCThreadSleep(TTick tick) {
   if (tick == RVCOS_TIMEOUT_INFINITE)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
 
-  if (tick == RVCOS_TIMEOUT_IMMEDIATE) {
-    scheduler();
-  } else {
+  if (tick != RVCOS_TIMEOUT_IMMEDIATE) {
     TThreadID sid = curr_running;
     // Setting state to waiting
     tcb.threads[sid].state = RVCOS_THREAD_STATE_WAITING;
     tcb.threads[sid].sleep_for = tick;
     // Adding to the sleeping queue
     push_back(threads_sleeping, sid);
-    // Calling scheduler
-    scheduler();
+    // Remove from ready queue
+    remove_prio(ready_queue, sid);
   }
+  // Calling scheduler
+  scheduler();
+
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -551,7 +561,7 @@ void write_to_videomem(char c) {
     cursor += 0x40;
     // Move back to start of the line
     cursor -= cursor % 0x40;
-  } else {
+  } else if (c != '\0') {
     // else printing the charactor
     VIDEO_MEMORY[cursor++] = c;
   }
@@ -575,17 +585,17 @@ void output_char(const char *buffer, int writesize) {
       // Up, down, left, right
       if (char_mode == 2) {
         if (c == 'A') {
-          if (cursor > 0x40)
-            cursor -= 0x40;
+          // if (cursor > 0x40)
+          cursor -= 0x40;
         } else if (c == 'B') {
-          if (cursor <= 0x40 * 35)
-            cursor += 0x40;
+          // if (cursor <= 0x40 * 35)
+          cursor += 0x40;
         } else if (c == 'C') {
-          if ((cursor + 1) % 0x40 != 0)
-            cursor += 1;
+          // if ((cursor + 1) % 0x40 != 0)
+          cursor += 1;
         } else if (c == 'D') {
-          if (cursor % 0x40 != 0)
-            cursor -= 1;
+          // if (cursor % 0x40 != 0)
+          cursor -= 1;
         } else if (c == 'H') {
           cursor = 0;
         }

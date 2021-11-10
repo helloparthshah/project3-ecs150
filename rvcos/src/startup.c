@@ -59,6 +59,7 @@ __attribute__((always_inline)) extern inline void csr_disable_interrupts(void) {
 #define MTIMECMP_HIGH (*((volatile uint32_t *)0x40000014))
 #define CONTROLLER (*((volatile uint32_t *)0x40000018))
 #define IER (*((volatile uint32_t *)0x40000000))
+#define CARTRIDGE (*((volatile uint32_t *)0x4000001C))
 
 void init(void) {
   uint8_t *Source = _erodata;
@@ -81,7 +82,6 @@ void init(void) {
 }
 
 extern volatile uint32_t ticks;
-extern volatile uint32_t controller_status;
 extern void scheduler();
 extern void dec_tick();
 extern void video_interrupt_handler();
@@ -89,17 +89,17 @@ extern void video_interrupt_handler();
 
 void c_interrupt_handler(void) {
   uint32_t mcause = csr_mcause_read();
-  if ((VIP & 0x2) && mcause == 0x8000000B) {
-    video_interrupt_handler();
-  } else if (mcause == 0x80000007) {
+  if (mcause == 0x80000007) {
     uint64_t NewCompare = (((uint64_t)MTIMECMP_HIGH) << 32) | MTIMECMP_LOW;
     NewCompare += RVCOS_TICKS_MS;
     MTIMECMP_HIGH = NewCompare >> 32;
     MTIMECMP_LOW = NewCompare;
-    if (CONTROLLER & 0x1) {
+    if (CARTRIDGE & 0x1) {
       ticks++;
       dec_tick();
       scheduler();
     }
+  } else if ((VIP & 0x2) && mcause == 0x8000000B) {
+    video_interrupt_handler();
   }
 }
