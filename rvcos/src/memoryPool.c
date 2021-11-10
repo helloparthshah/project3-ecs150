@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// extern volatile allocStruct freeChunks;
+extern volatile allocStruct freeChunks;
 extern volatile MemoryPoolArray InitialFreeChunks;
 
 void AllocStructInit(volatile allocStructRef alloc, TMemorySize size) {
@@ -13,14 +13,14 @@ void AllocStructInit(volatile allocStructRef alloc, TMemorySize size) {
   alloc->DFirstFree = NULL;
 }
 
-/* void *MemoryAlloc(int size) {
+void *MemoryAlloc(int size) {
   AllocateFreeChunk();
   return malloc(size);
-} */
+}
 
 volatile int SuspendAllocationOfFreeChunks = 0;
 
-/* SMemoryPoolFreeChunkRef AllocateFreeChunk(void) {
+SMemoryPoolFreeChunkRef AllocateFreeChunk(void) {
   if (3 > freeChunks.DCount && !SuspendAllocationOfFreeChunks) {
     SuspendAllocationOfFreeChunks = 1;
     uint8_t *Ptr =
@@ -33,9 +33,9 @@ volatile int SuspendAllocationOfFreeChunks = 0;
   }
   return (SMemoryPoolFreeChunkRef)AllocStructAllocate(
       (allocStructRef)&freeChunks);
-} */
+}
 
-/* void *AllocStructAllocate(allocStructRef alloc) {
+void *AllocStructAllocate(allocStructRef alloc) {
   if (!alloc->DCount) {
     alloc->DFirstFree =
         MemoryAlloc(alloc->DStructureSize * MIN_ALLOCATION_COUNT);
@@ -55,7 +55,7 @@ volatile int SuspendAllocationOfFreeChunks = 0;
   alloc->DFirstFree = alloc->DFirstFree->DNext;
   alloc->DCount--;
   return NewStruct;
-} */
+}
 
 void AllocStructDeallocate(volatile allocStructRef alloc, void *obj) {
   freeNodeRef OldStruct = (freeNodeRef)obj;
@@ -66,7 +66,7 @@ void AllocStructDeallocate(volatile allocStructRef alloc, void *obj) {
 
 void writei(uint32_t, uint32_t);
 void write(char *, uint32_t);
-int line = 0;
+volatile int line = 0;
 
 TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                             TMemoryPoolIDRef memoryref) {
@@ -74,17 +74,12 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
 
   // Creating the memory pool and pushing into array
-  write("Test", line++);
   *memoryref = InitialFreeChunks.used;
-  write("Test1", line++);
   mp_push_back(&InitialFreeChunks, (SMemoryPoolFreeChunk){
                                        .DBase = base,
                                        .DSize = size,
                                        .id = InitialFreeChunks.used,
                                    });
-  write("Test2", line++);
-
-  // MemoryPool mp = (MemoryPool)malloc(sizeof(struct memory_pool));
   return RVCOS_STATUS_SUCCESS;
 }
 TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
@@ -96,7 +91,11 @@ TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
 }
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
                               void **pointer) {
+  if (memory >= InitialFreeChunks.used || size == 0 || pointer == NULL)
+    return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+
   // Allocates space using malloc
+  writei(InitialFreeChunks.chunks[memory].id, line++);
   InitialFreeChunks.chunks[memory].DSize += size;
   *pointer = (void *)((uint8_t *)malloc(size));
   // *pointer = (void *)AllocateFreeChunk();
@@ -104,7 +103,7 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
 }
 TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
   // frees the memory
-  // free(pointer);
+  free(pointer);
   // AllocStructDeallocate((allocStructRef)&freeChunks, pointer);
   return RVCOS_STATUS_SUCCESS;
 }

@@ -64,10 +64,9 @@ typedef struct {
 } MCBArray;
 
 typedef struct {
-  SMemoryPoolFreeChunk *chunks;
+  SMemoryPoolFreeChunk chunks[256];
   size_t used;
   size_t size;
-  uint32_t mPoolID;
 } MemoryPoolArray;
 
 // Struct for video controller

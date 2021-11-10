@@ -7,8 +7,10 @@ Deque *dmalloc() {
   // Allocating the size of the Deque
   // Deque *d = (Deque *)malloc(sizeof(Deque));
   Deque *d;
-  RVCMemoryPoolCreate(d, sizeof(Deque), &(d->mPoolID));
-  RVCMemoryPoolAllocate(d->mPoolID, sizeof(Deque), (void **)&d);
+  TMemoryPoolIDRef p = malloc(sizeof(TMemoryPoolID));
+  RVCMemoryPoolCreate(d, sizeof(Deque), p);
+  RVCMemoryPoolAllocate(*p, sizeof(Deque), (void **)&d);
+  free(p);
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -27,8 +29,9 @@ PrioDeque *pdmalloc() {
 TBDeque *tbmalloc() {
   // Allocating the size of the Deque
   TBDeque *d;
-  (RVCMemoryPoolCreate(d, sizeof(TBDeque), NULL));
+  RVCMemoryPoolCreate(d, sizeof(TBDeque), &(d->mPoolID));
   RVCMemoryPoolAllocate(d->mPoolID, sizeof(TBDeque), (void **)&d);
+
   if (d != NULL)
     d->head = d->tail = NULL;
   return d;
@@ -282,23 +285,12 @@ void mp_init(volatile MemoryPoolArray *a, size_t initialSize) {
   a->used = 0;
   a->size = initialSize;
 
-  // a->chunks = malloc(initialSize * sizeof(SMemoryPoolFreeChunk));
-  RVCMemoryPoolCreate(a->chunks, sizeof(SMemoryPoolFreeChunk),
-                      (uint32_t *)&(a->mPoolID));
-  RVCMemoryPoolAllocate(a->mPoolID, initialSize * sizeof(SMemoryPoolFreeChunk),
-                        (void **)&(a->chunks));
-
   /* for (int i = 0; i < initialSize; i++)
-    AllocStructDeallocate((allocStructRef)&freeChunks, (void *)&(a->chunks[i])); */
+    AllocStructDeallocate((allocStructRef)&freeChunks, (void *)&(a->chunks[i]));
+  */
 }
 
 void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {
-  if (a->used == a->size) {
-    a->size *= 2;
-    RVCMemoryPoolAllocate(a->mPoolID, a->size * sizeof(SMemoryPoolFreeChunk),
-                          (void **)&(a->chunks));
-    // a->threads = realloc(a->threads, a->size * sizeof(Thread));
-  }
   a->chunks[a->used++] = element;
 }
 

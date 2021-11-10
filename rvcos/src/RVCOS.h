@@ -80,7 +80,7 @@ typedef struct {
   void *DBase;
 } SMemoryPoolFreeChunk, *SMemoryPoolFreeChunkRef;
 
-// SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
+SMemoryPoolFreeChunkRef AllocateFreeChunk(void);
 void *AllocStructAllocate(allocStructRef alloc);
 void AllocStructDeallocate(volatile allocStructRef alloc, void *obj);
 

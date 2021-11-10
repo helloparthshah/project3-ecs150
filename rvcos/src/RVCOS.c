@@ -17,7 +17,7 @@ volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 volatile int curr_running = 0;
 
-// volatile allocStruct freeChunks;
+volatile allocStruct freeChunks;
 volatile MemoryPoolArray InitialFreeChunks;
 
 volatile char *VIDEO_MEMORY = (volatile char *)(0x50000000 + 0xFE800);
@@ -180,6 +180,8 @@ void scheduler() {
   }
 }
 
+extern volatile int line;
+
 TStatus RVCInitialize(uint32_t *gp) {
   if (gp == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
@@ -188,11 +190,10 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Resetting the ticks
   ticks = 0;
   // Initializing the system memory pool
-  // AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
+  AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
   mp_init(&InitialFreeChunks, 256);
   // Initializing the ready queue
   ready_queue = pdmalloc();
-  writei(ready_queue->mPoolID, 1);
   threads_sleeping = dmalloc();
   threads_waiting = dmalloc();
   threads_blocked_on_mutexes = dmalloc();
