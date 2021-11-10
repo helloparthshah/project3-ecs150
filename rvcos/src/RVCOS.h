@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define RVCOS_TICKS_MS 200
+#define RVCOS_TICKS_MS 2
 #define MIN_ALLOCATION_COUNT 0x40
 #define MAX_POOLS 1024
 

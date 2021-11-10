@@ -2,9 +2,17 @@
 #include "RVCOS.h"
 
 #define CARTRIDGE (*((volatile uint32_t *)0x4000001C))
+#define MTIME_LOW (*((volatile uint32_t *)0x40000008))
+#define MTIME_HIGH (*((volatile uint32_t *)0x4000000C))
+#define MTIMECMP_LOW (*((volatile uint32_t *)0x40000010))
+#define MTIMECMP_HIGH (*((volatile uint32_t *)0x40000014))
 
 void enter_cartridge();
+extern void csr_write_mie(uint32_t);
 
+extern void csr_enable_interrupts(void);
+
+extern void csr_disable_interrupts(void);
 // Checking if cartridge is inserted
 volatile int isInit = 0;
 
@@ -16,6 +24,14 @@ int main() {
   while (1) {
     if (CARTRIDGE & 0x1 && isInit == 0) {
       isInit = 1;
+
+      /* uint64_t NewCompare = (((uint64_t)MTIME_HIGH) << 32) | MTIME_LOW;
+      NewCompare += RVCOS_TICKS_MS;
+      MTIMECMP_HIGH = NewCompare >> 32;
+      MTIMECMP_LOW = NewCompare;
+      csr_enable_interrupts();
+      csr_write_mie(0x888); */
+
       enter_cartridge();
     }
     if (!(CARTRIDGE & 0x1) && isInit == 1) {

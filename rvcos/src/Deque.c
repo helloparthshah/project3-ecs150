@@ -50,12 +50,9 @@ int isEmptyTB(volatile TBDeque *d) {
 }
 
 void tb_push_back(volatile TBDeque *d, TextBuffer v) {
-  // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct TextNode *n;
   uint32_t p = 0;
-  // RVCMemoryPoolCreate(n, sizeof(struct TextNode), &p);
   RVCMemoryPoolAllocate(0, sizeof(struct TextNode), (void **)&n);
-  // n->mPoolID = p;
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -111,12 +108,8 @@ void push_front(volatile Deque *d, TThreadID v) {
 }
 
 void push_back(volatile Deque *d, TThreadID v) {
-  // struct Node *n = (struct Node *)malloc(sizeof(struct Node));
   struct Node *n;
-  // uint32_t p = 0;
-  // RVCMemoryPoolCreate(n, sizeof(struct Node), &p);
   RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
-  // n->mPoolID = p;
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -272,12 +265,8 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
 }
 
 void tcb_init(volatile TCBArray *a, size_t initialSize) {
-  // uint32_t p = 0;
-  // RVCMemoryPoolCreate(a->threads, initialSize * sizeof(Thread), &p);
   RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
                         (void **)&(a->threads));
-  // a->mPoolID = p;
-  // a->threads = malloc(initialSize * sizeof(Thread));
   a->used = 0;
   a->size = initialSize;
 }
@@ -285,8 +274,11 @@ void tcb_init(volatile TCBArray *a, size_t initialSize) {
 void tcb_push_back(volatile TCBArray *a, Thread element) {
   if (a->used == a->size) {
     a->size *= 2;
+    Thread *t = a->threads;
     RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
-    // a->threads = realloc(a->threads, a->size * sizeof(Thread));
+    for (int i = 0; i < a->used; i++) {
+      a->threads[i] = t[i];
+    }
   }
   a->threads[a->used++] = element;
 }
@@ -316,8 +308,11 @@ void mutex_init(volatile MCBArray *a, size_t initialSize) {
 void mutex_push_back(volatile MCBArray *a, Mutex element) {
   if (a->used == a->size) {
     a->size *= 2;
+    Mutex *m = a->mutexes;
     RVCMemoryPoolAllocate(0, a->size * sizeof(Mutex), (void **)&(a->mutexes));
-    // a->mutexes = realloc(a->mutexes, a->size * sizeof(Mutex));
+    for (int i = 0; i < a->used; i++) {
+      a->mutexes[i] = m[i];
+    }
   }
   a->mutexes[a->used++] = element;
 }

@@ -295,8 +295,6 @@ TStatus RVCThreadActivate(TThreadID thread) {
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
   void *ptr;
-  // uint32_t mpid;
-  // RVCMemoryPoolCreate(ptr, tcb.threads[thread].memsize, &mpid);
   RVCMemoryPoolAllocate(0, tcb.threads[thread].memsize, &ptr);
   tcb.threads[thread].ctx =
       initialize_stack(ptr + tcb.threads[thread].memsize, skeleton,
