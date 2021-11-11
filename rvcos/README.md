@@ -1,8 +1,8 @@
 Parth Shah
 916829171
 
-Naman Sheth
-917333844
+Keshav Agrawal
+917332502
 
 Sources:
 https://interrupt.memfault.com/blog/boostrapping-libc-with-newlib#enabling-newlib

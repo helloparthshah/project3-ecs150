@@ -10,7 +10,7 @@ Deque *dmalloc() {
   // TMemoryPoolIDRef p = malloc(sizeof(TMemoryPoolID));
   // uint32_t p = 0;
   // RVCMemoryPoolCreate(d, sizeof(Deque), &p);
-  RVCMemoryPoolAllocate(0, sizeof(Deque), (void **)&d);
+  RVCMemoryAllocate(sizeof(Deque), (void **)&d);
   // d->mPoolID = p;
   // free(p);
   if (d != NULL)
@@ -22,7 +22,7 @@ PrioDeque *pdmalloc() {
   PrioDeque *pd;
   // uint32_t p = 0;
   // RVCMemoryPoolCreate(pd, sizeof(PrioDeque), &p);
-  RVCMemoryPoolAllocate(0, sizeof(PrioDeque), (void **)&pd);
+  RVCMemoryAllocate(sizeof(PrioDeque), (void **)&pd);
   // pd->mPoolID = p;
   pd->high = dmalloc();
   pd->norm = dmalloc();
@@ -35,7 +35,7 @@ TBDeque *tbmalloc() {
   TBDeque *d;
   // uint32_t p = 0;
   // RVCMemoryPoolCreate(d, sizeof(TBDeque), &p);
-  RVCMemoryPoolAllocate(0, sizeof(TBDeque), (void **)&d);
+  RVCMemoryAllocate(sizeof(TBDeque), (void **)&d);
   // d->mPoolID = p;
   if (d != NULL)
     d->head = d->tail = NULL;
@@ -52,7 +52,7 @@ int isEmptyTB(volatile TBDeque *d) {
 void tb_push_back(volatile TBDeque *d, TextBuffer v) {
   struct TextNode *n;
   uint32_t p = 0;
-  RVCMemoryPoolAllocate(0, sizeof(struct TextNode), (void **)&n);
+  RVCMemoryAllocate(sizeof(struct TextNode), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -88,7 +88,7 @@ void push_front(volatile Deque *d, TThreadID v) {
   struct Node *n;
   uint32_t p = 0;
   // RVCMemoryPoolCreate(n, sizeof(struct Node), &p);
-  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
+  RVCMemoryAllocate(sizeof(struct Node), (void **)&n);
   // n->mPoolID = p;
   if (n == NULL)
     return;
@@ -109,7 +109,7 @@ void push_front(volatile Deque *d, TThreadID v) {
 
 void push_back(volatile Deque *d, TThreadID v) {
   struct Node *n;
-  RVCMemoryPoolAllocate(0, sizeof(struct Node), (void **)&n);
+  RVCMemoryAllocate(sizeof(struct Node), (void **)&n);
   if (n == NULL)
     return;
   // Setting the value of the node
@@ -265,8 +265,7 @@ void remove_prio(volatile PrioDeque *d, TThreadID tid) {
 }
 
 void tcb_init(volatile TCBArray *a, size_t initialSize) {
-  RVCMemoryPoolAllocate(0, initialSize * sizeof(Thread),
-                        (void **)&(a->threads));
+  RVCMemoryAllocate(initialSize * sizeof(Thread), (void **)&(a->threads));
   a->used = 0;
   a->size = initialSize;
 }
@@ -275,7 +274,7 @@ void tcb_push_back(volatile TCBArray *a, Thread element) {
   if (a->used == a->size) {
     a->size *= 2;
     Thread *t = a->threads;
-    RVCMemoryPoolAllocate(0, a->size * sizeof(Thread), (void **)&(a->threads));
+    RVCMemoryAllocate(a->size * sizeof(Thread), (void **)&(a->threads));
     for (int i = 0; i < a->used; i++) {
       a->threads[i] = t[i];
     }
@@ -283,12 +282,12 @@ void tcb_push_back(volatile TCBArray *a, Thread element) {
   a->threads[a->used++] = element;
 }
 
-extern volatile allocStruct freeChunks;
-
 void mp_init(volatile MemoryPoolArray *a) {
+  extern uint8_t _pool_size;
+  RVCMemoryAllocate(_pool_size / MIN_ALLOCATION_COUNT *
+                        sizeof(SMemoryPoolFreeChunk),
+                    (void **)&(a->chunks));
   a->used = 0;
-  for (int i = 0; i < MAX_POOLS; i++)
-    AllocStructDeallocate((allocStructRef)&freeChunks, (void *)&(a->chunks[i]));
 }
 
 void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {
@@ -298,7 +297,7 @@ void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {
 void mutex_init(volatile MCBArray *a, size_t initialSize) {
   // uint32_t p = 0;
   // RVCMemoryPoolCreate(a->mutexes, initialSize * sizeof(Mutex), &p);
-  RVCMemoryPoolAllocate(0, initialSize * sizeof(Mutex), (void **)&(a->mutexes));
+  RVCMemoryAllocate(initialSize * sizeof(Mutex), (void **)&(a->mutexes));
   // a->mPoolID = p;
   // a->mutex = malloc(initialSize * sizeof(Mutex));
   a->used = 0;
@@ -309,7 +308,7 @@ void mutex_push_back(volatile MCBArray *a, Mutex element) {
   if (a->used == a->size) {
     a->size *= 2;
     Mutex *m = a->mutexes;
-    RVCMemoryPoolAllocate(0, a->size * sizeof(Mutex), (void **)&(a->mutexes));
+    RVCMemoryAllocate(a->size * sizeof(Mutex), (void **)&(a->mutexes));
     for (int i = 0; i < a->used; i++) {
       a->mutexes[i] = m[i];
     }

@@ -84,7 +84,9 @@ SECTIONS
     __global_pointer$ = MIN(_sdata + 0x800,
 		            MAX(_data + 0x800, _ebss - 0x800));
 
-    _system_pool_top = __stack_top - 0x80000;
+    _system_pool_top = __stack_top - 64K;
 
     _heap_base = MAX(_edata, MAX(_esdata,_ebss));
+
+    _pool_size = _system_pool_top - _heap_base;
 }

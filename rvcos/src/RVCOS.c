@@ -17,7 +17,6 @@ volatile uint32_t ticks = 0;
 volatile uint32_t cart_gp;
 volatile int curr_running = 0;
 
-volatile allocStruct freeChunks;
 volatile MemoryPoolArray memory_pool_array;
 
 volatile char *VIDEO_MEMORY = (volatile char *)(0x50000000 + 0xFE800);
@@ -200,7 +199,8 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Resetting the ticks
   ticks = 0;
   // Initializing the system memory pool
-  AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
+  // AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
+  initSystemPool(&_heap_base);
   mp_init(&memory_pool_array);
   uint32_t p;
   RVCMemoryPoolCreate(&_heap_base, MIN_ALLOCATION_COUNT, &p);
@@ -222,7 +222,7 @@ TStatus RVCInitialize(uint32_t *gp) {
   void *ptr;
   // uint32_t p;
   // RVCMemoryPoolCreate(ptr, 1024, &p);
-  RVCMemoryPoolAllocate(0, 1024, &ptr);
+  RVCMemoryAllocate(1024, &ptr);
   tcb_push_back(&tcb, (Thread){
                           .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
                           .param = 0,
@@ -306,7 +306,7 @@ TStatus RVCThreadActivate(TThreadID thread) {
     return RVCOS_STATUS_ERROR_INVALID_ID;
   // Initializing context
   void *ptr;
-  RVCMemoryPoolAllocate(0, tcb.threads[thread].memsize, &ptr);
+  RVCMemoryAllocate(tcb.threads[thread].memsize, &ptr);
   tcb.threads[thread].ctx =
       initialize_stack(ptr + tcb.threads[thread].memsize, skeleton,
                        tcb.threads[thread].param, thread);

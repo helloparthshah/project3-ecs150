@@ -57,25 +57,33 @@ int main(int argc, char *argv[]) {
 void *MemoryAlloc(int size) {
   printf("@line %d \n", __LINE__);
   AllocateFreeChunk();
-  return malloc(size); // counter that counts the free memory blocks (number of). use pointers to move between different memory blocks
+  return malloc(
+      size); // counter that counts the free memory blocks (number of). use
+             // pointers to move between different memory blocks
   // use one pointer for the front and over write the previous stuff in the mem?
-  // you can maintain a valid vector to see which one is free and which one is occupied (memory block)
-  // use counter and pointer to know the size (pool size) to know which one is used
+  // you can maintain a valid vector to see which one is free and which one is
+  // occupied (memory block) use counter and pointer to know the size (pool
+  // size) to know which one is used
 }
 /*
-system pool - larger memory blocks inside? avail mem block? if you wanna use a mem block, you request from the block
-pool is like a container to store memory; out of the pool we allocate one memory block.
-initialize pool - initialize pointer and size of the pool and then the free counter of blocks in the pool (which is max size since every size is free)
-struct size and pool size
+system pool - larger memory blocks inside? avail mem block? if you wanna use a
+mem block, you request from the block pool is like a container to store memory;
+out of the pool we allocate one memory block. initialize pool - initialize
+pointer and size of the pool and then the free counter of blocks in the pool
+(which is max size since every size is free) struct size and pool size
 
 we have multiple pools; we use pool reference; maximum size of the pool ? ;
 pool size will also increase; you have several pools;
-you have lots of pool and you can allocate memory froma pool reference that points to one of the pools; we have a mem block that we allocate
-size of a block - 64 bytes (not sure). 
+you have lots of pool and you can allocate memory froma pool reference that
+points to one of the pools; we have a mem block that we allocate size of a block
+- 64 bytes (not sure).
 
-when you call initialize - pool and another is struct size. struct size will limit your size of entire pool; struct size is the size of the current free one; or pool size;
+when you call initialize - pool and another is struct size. struct size will
+limit your size of entire pool; struct size is the size of the current free one;
+or pool size;
 
-companion - allocate pool in one reference (container for mem will be pool?)? WTF?
+companion - allocate pool in one reference (container for mem will be pool?)?
+WTF?
 */
 
 void AllocStructInit(allocStructRef alloc, int size) {
@@ -89,8 +97,8 @@ void *AllocStructAllocate(allocStructRef alloc) {
     alloc->DFirstFree =
         MemoryAlloc(alloc->DStructureSize * MIN_ALLOCATION_COUNT);
     freeNodeRef Current = alloc->DFirstFree;
-    for (int Index = 0; Index < MIN_ALLOCATION_COUNT; Index++) {
-      if (Index + 1 < MIN_ALLOCATION_COUNT) {
+    for (int i = 0; i < MIN_ALLOCATION_COUNT; i++) {
+      if (i + 1 < MIN_ALLOCATION_COUNT) {
         Current->DNext =
             (freeNodeRef)((uint8_t *)Current + alloc->DStructureSize);
         Current = Current->DNext;
@@ -132,5 +140,5 @@ void DeallocateFreeChunk(SMemoryPoolFreeChunkRef chunk) {
   AllocStructDeallocate(&freeChunks, (void *)chunk);
 }
 
-// initialize the entire pool; another function for allocate; delete the old one?
-// use standard library companion
+// initialize the entire pool; another function for allocate; delete the old
+// one? use standard library companion

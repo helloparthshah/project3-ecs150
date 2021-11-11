@@ -59,7 +59,7 @@ typedef struct {
 } MCBArray;
 
 typedef struct {
-  SMemoryPoolFreeChunk chunks[MAX_POOLS];
+  SMemoryPoolFreeChunk *chunks;
   size_t used;
 } MemoryPoolArray;
 

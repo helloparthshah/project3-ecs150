@@ -4,67 +4,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern volatile allocStruct freeChunks;
 extern volatile MemoryPoolArray memory_pool_array;
 
-void AllocStructInit(volatile allocStructRef alloc, TMemorySize size) {
-  alloc->DCount = 0;
-  alloc->DStructureSize = size;
-  alloc->DFirstFree = NULL;
-}
+typedef struct freeNodeStruct freeNode, *freeNodeRef;
 
-void *MemoryAlloc(int size) {
-  AllocateFreeChunk();
-  return malloc(size);
-}
+struct freeNodeStruct {
+  struct freeNodeStruct *next, *prev;
+};
 
-volatile int SuspendAllocationOfFreeChunks = 0;
+freeNodeRef freeNodesList;
+freeNodeRef allocNodesList;
 
-SMemoryPoolFreeChunkRef AllocateFreeChunk(void) {
-  if (3 > freeChunks.DCount && !SuspendAllocationOfFreeChunks) {
-    SuspendAllocationOfFreeChunks = 1;
-    uint8_t *Ptr =
-        MemoryAlloc(freeChunks.DStructureSize * MIN_ALLOCATION_COUNT);
-    for (int i = 0; i < MIN_ALLOCATION_COUNT; i++) {
-      AllocStructDeallocate((allocStructRef)&freeChunks,
-                            Ptr + i * freeChunks.DStructureSize);
-    }
-    SuspendAllocationOfFreeChunks = 0;
-  }
-  return (SMemoryPoolFreeChunkRef)AllocStructAllocate(
-      (allocStructRef)&freeChunks);
-}
+extern uint8_t _pool_size;
 
-void *AllocStructAllocate(allocStructRef alloc) {
-  if (!alloc->DCount) {
-    alloc->DFirstFree =
-        MemoryAlloc(alloc->DStructureSize * MIN_ALLOCATION_COUNT);
-    freeNodeRef Current = alloc->DFirstFree;
-    for (int i = 0; i < MIN_ALLOCATION_COUNT; i++) {
-      if (i + 1 < MIN_ALLOCATION_COUNT) {
-        Current->DNext =
-            (freeNodeRef)((uint8_t *)Current + alloc->DStructureSize);
-        Current = Current->DNext;
-      } else {
-        Current->DNext = NULL;
+void initSystemPool(void *ptr) {
+  ptr = malloc(10240);
+  if (ptr != NULL) {
+    for (unsigned long i = 0; i < _pool_size / MIN_ALLOCATION_COUNT; i++) {
+      freeNodeRef pCurUnit = (freeNodeRef)((char *)ptr + i * sizeof(freeNode));
+
+      pCurUnit->prev = NULL;
+      pCurUnit->next = freeNodesList; // Insert the new unit at head.
+
+      if (freeNodesList != NULL) {
+        freeNodesList->prev = pCurUnit;
       }
+      freeNodesList = pCurUnit;
     }
-    alloc->DCount = MIN_ALLOCATION_COUNT;
   }
-  freeNodeRef NewStruct = alloc->DFirstFree;
-  alloc->DFirstFree = alloc->DFirstFree->DNext;
-  alloc->DCount--;
-  return NewStruct;
 }
 
-void AllocStructDeallocate(volatile allocStructRef alloc, void *obj) {
-  freeNodeRef OldStruct = (freeNodeRef)obj;
-  alloc->DCount++;
-  OldStruct->DNext = alloc->DFirstFree;
-  alloc->DFirstFree = OldStruct;
+void *Alloc() {
+  freeNodeRef pCurUnit = freeNodesList;
+  freeNodesList = pCurUnit->next; // Get a unit from free linkedlist.
+  if (NULL != freeNodesList) {
+    freeNodesList->prev = NULL;
+  }
+
+  pCurUnit->next = allocNodesList;
+
+  if (NULL != allocNodesList) {
+    allocNodesList->prev = pCurUnit;
+  }
+  allocNodesList = pCurUnit;
+
+  return (void *)((char *)pCurUnit + sizeof(freeNode));
 }
 
-void writei(uint32_t, uint32_t);
 void write(char *, uint32_t);
 
 TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
@@ -98,6 +84,8 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   if (memory >= memory_pool_array.used || size == 0 || pointer == NULL) {
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   }
+  if (memory == RVCOS_MEMORY_POOL_ID_SYSTEM)
+    *pointer = Alloc();
   /* if (size >= MIN_ALLOCATION_COUNT * freeChunks.DStructureSize -
                   memory_pool_array.chunks[memory].DSize)
     return RVCOS_STATUS_ERROR_INSUFFICIENT_RESOURCES; */
@@ -107,8 +95,9 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   /* *pointer = (void *)((uint8_t *)memory_pool_array.chunks[memory].DBase +
                       memory_pool_array.chunks[memory].DSize); */
 
-  memory_pool_array.chunks[memory].DSize += size;
   *pointer = (void *)((uint8_t *)malloc(size));
+  // *pointer = Alloc();
+  // memory_pool_array.chunks[memory].DSize += size;
   // Check if we need to allocate a new chunk if crosses the multiple of min
   // size
 
