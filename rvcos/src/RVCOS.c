@@ -186,9 +186,15 @@ extern volatile int line;
 
 extern uint8_t _heap_base;
 
+#define MTIME_LOW (*((volatile uint32_t *)0x40000008))
+#define MTIME_HIGH (*((volatile uint32_t *)0x4000000C))
+#define MTIMECMP_LOW (*((volatile uint32_t *)0x40000010))
+#define MTIMECMP_HIGH (*((volatile uint32_t *)0x40000014))
+
 TStatus RVCInitialize(uint32_t *gp) {
   if (gp == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
+
   // Storing the cartridge gp
   cart_gp = (uint32_t)gp;
   // Resetting the ticks
@@ -240,7 +246,12 @@ TStatus RVCInitialize(uint32_t *gp) {
                           .mutex_timeout = -1,
                           .mutex_id = dmalloc(),
                       });
-  // Make tp point to main
+  uint64_t NewCompare = (((uint64_t)MTIME_HIGH) << 32) | MTIME_LOW;
+  NewCompare += RVCOS_TICKS_MS;
+  MTIMECMP_HIGH = NewCompare >> 32;
+  MTIMECMP_LOW = NewCompare;
+  csr_enable_interrupts();
+  csr_write_mie(0x888);
   return RVCOS_STATUS_SUCCESS;
 }
 
@@ -663,8 +674,8 @@ void video_interrupt_handler(void) {
       output_char(tb.buffer, tb.writesize);
       tcb.threads[tb.tid].state = RVCOS_THREAD_STATE_READY;
       push_back_prio(ready_queue, tb.tid);
-      scheduler();
     }
+    scheduler();
   }
 }
 

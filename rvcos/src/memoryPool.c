@@ -81,15 +81,18 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                                    });
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMemoryPoolDelete(TMemoryPoolID memory) {
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMemoryPoolQuery(TMemoryPoolID memory, TMemorySizeRef bytesleft) {
   if (memory >= memory_pool_array.used || bytesleft == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   *bytesleft = MIN_ALLOCATION_COUNT - memory_pool_array.chunks[memory].DSize;
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
                               void **pointer) {
   if (memory >= memory_pool_array.used || size == 0 || pointer == NULL) {
@@ -118,6 +121,7 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   } */
   return RVCOS_STATUS_SUCCESS;
 }
+
 TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
   // frees the memory
   free(pointer);
