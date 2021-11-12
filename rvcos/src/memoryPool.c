@@ -64,7 +64,7 @@ return *n; */
 // }
 
 node freeNodesList;
-node allocNodesList;
+// node allocNodesList;
 
 extern uint8_t _pool_size;
 extern uint8_t _heap_base;
@@ -110,8 +110,10 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                             TMemoryPoolIDRef memoryref) {
   if (base == NULL || size == 0 || memoryref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  chunk c;
-  for (int i = 0; i < freeNodesList.size; i++) {
+  chunk c = freeNodesList.nodes[0];
+  freeNodesList.nodes[0] = (chunk){.ptr = NULL, .size = 0};
+  freeNodesList.used--;
+  /* for (int i = 0; i < freeNodesList.size; i++) {
     if (freeNodesList.nodes[i].ptr >= base &&
         freeNodesList.nodes[i].ptr <= (void *)((uint8_t *)base + size)) {
       c = freeNodesList.nodes[i];
@@ -121,10 +123,10 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
       freeNodesList.size--;
       break;
     }
-  }
+  } */
   writei(c.size, 20);
 
-  pushNode(&allocNodesList, base, size);
+  // pushNode(&allocNodesList, base, size);
 
   pushNode(&freeNodesList, c.ptr, base - c.ptr);
   pushNode(&freeNodesList, base + size, c.size - size - (base - c.ptr));
@@ -169,11 +171,16 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
 
   memory_pool_array.pools[memory].Used += size;
 
-  if (memory == RVCOS_MEMORY_POOL_ID_SYSTEM)
+  if (memory == RVCOS_MEMORY_POOL_ID_SYSTEM) {
+    // *pointer = memory_pool_array.pools[memory].DBase;
+    memory_pool_array.pools[memory].DBase =
+        (void *)((uint8_t *)memory_pool_array.pools[memory].DBase + size);
     *pointer = (void *)((uint8_t *)malloc(size));
-  else {
-    chunk c;
-    for (int i = 0; i < allocNodesList.size; i++) {
+  } else {
+    *pointer = memory_pool_array.pools[memory].DBase;
+    memory_pool_array.pools[memory].DBase =
+        (void *)((uint8_t *)memory_pool_array.pools[memory].DBase + size);
+    /* for (int i = 0; i < allocNodesList.size; i++) {
       if (allocNodesList.nodes[i].ptr >=
               memory_pool_array.pools[memory].DBase &&
           allocNodesList.nodes[i].ptr <=
@@ -184,7 +191,7 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
       }
     }
     *pointer = c.ptr;
-    c.ptr += size;
+    c.ptr += size; */
     // *pointer = (void *)((uint8_t *)malloc(size));
   }
   return RVCOS_STATUS_SUCCESS;
