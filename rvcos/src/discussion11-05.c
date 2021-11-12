@@ -5,10 +5,10 @@
 
 #define MIN_ALLOCATION_COUNT 0x40
 
-typedef struct freeNodeStruct freeNode, *freeNodeRef;
+typedef struct nodesList freeNode, *freeNodeRef;
 
-struct freeNodeStruct {
-  struct freeNodeStruct *DNext;
+struct nodesList {
+  struct nodesList *DNext;
 };
 
 typedef struct {
@@ -16,6 +16,7 @@ typedef struct {
   int DStructureSize;
   freeNodeRef DFirstFree;
 } allocStruct, *allocStructRef;
+
 void *MemoryAlloc(int size);
 
 void AllocStructInit(allocStructRef alloc, int size);

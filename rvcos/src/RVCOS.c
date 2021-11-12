@@ -184,6 +184,7 @@ void scheduler() {
 extern volatile int line;
 
 extern uint8_t _heap_base;
+extern uint8_t _pool_size;
 
 #define MTIME_LOW (*((volatile uint32_t *)0x40000008))
 #define MTIME_HIGH (*((volatile uint32_t *)0x4000000C))
@@ -199,11 +200,8 @@ TStatus RVCInitialize(uint32_t *gp) {
   // Resetting the ticks
   ticks = 0;
   // Initializing the system memory pool
-  // AllocStructInit((allocStructRef)&freeChunks, sizeof(SMemoryPoolFreeChunk));
-  initSystemPool(&_heap_base);
-  mp_init(&memory_pool_array);
+  initSystemPool();
   uint32_t p;
-  RVCMemoryPoolCreate(&_heap_base, MIN_ALLOCATION_COUNT, &p);
   // Initializing the ready queue
   ready_queue = pdmalloc();
   threads_sleeping = dmalloc();
@@ -220,8 +218,6 @@ TStatus RVCInitialize(uint32_t *gp) {
 
   // Create idle thread
   void *ptr;
-  // uint32_t p;
-  // RVCMemoryPoolCreate(ptr, 1024, &p);
   RVCMemoryAllocate(1024, &ptr);
   tcb_push_back(&tcb, (Thread){
                           .ctx = initialize_stack(ptr + 1024, idleThread, 0, 0),
@@ -674,8 +670,11 @@ void video_interrupt_handler(void) {
       output_char(tb.buffer, tb.writesize);
       tcb.threads[tb.tid].state = RVCOS_THREAD_STATE_READY;
       push_back_prio(ready_queue, tb.tid);
+      if (tcb.threads[tb.tid].priority > tcb.threads[curr_running].priority) {
+        // push_back_prio(ready_queue, tb.tid);
+        scheduler();
+      }
     }
-    scheduler();
   }
 }
 

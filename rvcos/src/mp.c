@@ -11,10 +11,10 @@ typedef struct {
 
 } SMemoryPool, *SMemoryPoolRef;
 
-typedef struct freeNodeStruct freeNode, *freeNodeRef;
+typedef struct nodesList freeNode, *freeNodeRef;
 
-struct freeNodeStruct {
-  struct freeNodeStruct *next, *prev;
+struct nodesList {
+  struct nodesList *next, *prev;
 };
 
 freeNodeRef freeNodesList;

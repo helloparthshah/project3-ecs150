@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define RVCOS_TICKS_MS 2
+#define RVCOS_TICKS_MS 200
 #define MIN_ALLOCATION_COUNT 0x40
 
 #define RVCOS_STATUS_FAILURE ((TStatus)0x00)
@@ -62,10 +62,11 @@ typedef TThreadReturn (*TThreadEntry)(void *);
 typedef struct {
   uint32_t id;
   int DSize;
+  int Used;
   void *DBase;
 } SMemoryPoolFreeChunk, *SMemoryPoolFreeChunkRef;
 
-void initSystemPool(void *ptr);
+void initSystemPool();
 
 typedef struct {
   uint32_t DLeft : 1;

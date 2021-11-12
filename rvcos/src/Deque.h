@@ -59,8 +59,9 @@ typedef struct {
 } MCBArray;
 
 typedef struct {
-  SMemoryPoolFreeChunk *chunks;
+  SMemoryPoolFreeChunk *pools;
   size_t used;
+  size_t size;
 } MemoryPoolArray;
 
 // Struct for video controller
