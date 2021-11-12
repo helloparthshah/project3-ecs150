@@ -153,29 +153,8 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   if (memory == RVCOS_MEMORY_POOL_ID_SYSTEM)
     *pointer = (void *)((uint8_t *)malloc(size));
   else {
-    /* if (size >= MIN_ALLOCATION_COUNT * freeChunks.DStructureSize -
-                    memory_pool_array.chunks[memory].DSize)
-      return RVCOS_STATUS_ERROR_INSUFFICIENT_RESOURCES; */
 
-    // Allocates space using malloc
-    // writei(freeChunks.DCount, 20);
-    /* *pointer = (void *)((uint8_t *)memory_pool_array.chunks[memory].DBase +
-                        memory_pool_array.chunks[memory].DSize); */
-
-    // memory_pool_array.chunks[RVCOS_MEMORY_POOL_ID_SYSTEM].DSize -= size;
     *pointer = (void *)((uint8_t *)malloc(size));
-    // *pointer = Alloc();
-    // Check if we need to allocate a new chunk if crosses the multiple of min
-    // size
-
-    /* if ((memory_pool_array.chunks[memory].DSize - size) %
-    MIN_ALLOCATION_COUNT
-    != memory_pool_array.chunks[memory].DSize % MIN_ALLOCATION_COUNT) { *pointer
-    = (void *)((uint8_t *)memory_pool_array.chunks[memory].DBase +
-                          memory_pool_array.chunks[memory].DSize - size);
-    } else {
-      *pointer = (void *)AllocateFreeChunk();
-    } */
   }
   return RVCOS_STATUS_SUCCESS;
 }
