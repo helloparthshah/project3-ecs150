@@ -10,18 +10,26 @@ typedef struct nodesList node, *nodeRef;
 typedef struct Chunk chunk, *chunkRef;
 
 struct Chunk {
-  chunk *next;
-  chunk *prev;
+  /* chunk *next;
+  chunk *prev; */
   void *ptr;
   int size;
 };
 
 struct nodesList {
-  chunk *head, *tail;
+  // chunk *head, *tail;
+  chunk nodes[256];
+  int size;
+  int used;
 };
 
 void pushNode(volatile node *d, void *ptr, int size) {
-  chunk *n;
+  /* if (d->used == d->size) {
+    d->size *= 2;
+    d->nodes = realloc(d->nodes, d->size * sizeof(chunk));
+  } */
+  d->nodes[d->used++] = (chunk){.ptr = ptr, .size = size};
+  /* chunk *n;
   n = (chunk *)malloc(sizeof(chunk));
   if (n == NULL)
     return;
@@ -37,26 +45,26 @@ void pushNode(volatile node *d, void *ptr, int size) {
     // Set next of tail to node and set tail to n
     d->tail->next = n;
     d->tail = n;
-  }
+  } */
 }
 
-chunk popNode(volatile node *d) {
-  // Get value
-  // struct Chunk v = {d->head->prev, d->head->next, d->head->ptr,
-  // d->head->size};
-  chunk *n = d->head;
-  if (d->head == d->tail) {
-    d->head = d->tail = NULL;
-  } else
-    // Set head to next
-    d->head = n->next;
-  // free(n);
-  RVCMemoryPoolDeallocate(0, n);
-  return *n;
-}
+// chunk popNode(volatile node *d) {
+// Get value
+// struct Chunk v = {d->head->prev, d->head->next, d->head->ptr,
+// d->head->size};
+/* chunk *n = d->head;
+if (d->head == d->tail) {
+  d->head = d->tail = NULL;
+} else
+  // Set head to next
+  d->head = n->next;
+// free(n);
+RVCMemoryPoolDeallocate(0, n);
+return *n; */
+// }
 
-nodeRef freeNodesList;
-nodeRef allocNodesList;
+node freeNodesList;
+node allocNodesList;
 
 extern uint8_t _pool_size;
 extern uint8_t _heap_base;
@@ -74,9 +82,9 @@ void initSystemPool() {
                                        .id = memory_pool_array.used,
                                    });
 
-  RVCMemoryAllocate(sizeof(node), (void **)&freeNodesList);
-  freeNodesList->head = freeNodesList->tail = NULL;
-  pushNode(freeNodesList, &_heap_base, &_pool_size);
+  // RVCMemoryAllocate(sizeof(node), (void **)&freeNodesList);
+  // freeNodesList->head = freeNodesList->tail = NULL;
+  pushNode(&freeNodesList, &_heap_base, &_pool_size);
 }
 
 /* void *Alloc() {
@@ -102,13 +110,24 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
                             TMemoryPoolIDRef memoryref) {
   if (base == NULL || size == 0 || memoryref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
-  chunk c = popNode(freeNodesList);
+  chunk c;
+  for (int i = 0; i < freeNodesList.size; i++) {
+    if (freeNodesList.nodes[i].ptr >= base &&
+        freeNodesList.nodes[i].ptr <= (void *)((uint8_t *)base + size)) {
+      c = freeNodesList.nodes[i];
+      for (int j = i; j < freeNodesList.size - 1; j++) {
+        freeNodesList.nodes[j] = freeNodesList.nodes[j + 1];
+      }
+      freeNodesList.size--;
+      break;
+    }
+  }
   writei(c.size, 20);
 
-  pushNode(allocNodesList, base, size);
+  pushNode(&allocNodesList, base, size);
 
-  pushNode(freeNodesList, c.ptr, base - c.ptr);
-  pushNode(freeNodesList, base + size, c.size - size - (base - c.ptr));
+  pushNode(&freeNodesList, c.ptr, base - c.ptr);
+  pushNode(&freeNodesList, base + size, c.size - size - (base - c.ptr));
   // Creating the memory pool and pushing into array
   *memoryref = memory_pool_array.used;
   mp_push_back(&memory_pool_array, (SMemoryPoolFreeChunk){
@@ -153,8 +172,20 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
   if (memory == RVCOS_MEMORY_POOL_ID_SYSTEM)
     *pointer = (void *)((uint8_t *)malloc(size));
   else {
-
-    *pointer = (void *)((uint8_t *)malloc(size));
+    chunk c;
+    for (int i = 0; i < allocNodesList.size; i++) {
+      if (allocNodesList.nodes[i].ptr >=
+              memory_pool_array.pools[memory].DBase &&
+          allocNodesList.nodes[i].ptr <=
+              (void *)((uint8_t *)memory_pool_array.pools[memory].DBase +
+                       memory_pool_array.pools[memory].DSize)) {
+        c = allocNodesList.nodes[i];
+        break;
+      }
+    }
+    *pointer = c.ptr;
+    c.ptr += size;
+    // *pointer = (void *)((uint8_t *)malloc(size));
   }
   return RVCOS_STATUS_SUCCESS;
 }
