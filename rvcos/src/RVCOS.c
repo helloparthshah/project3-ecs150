@@ -675,6 +675,7 @@ void video_interrupt_handler(void) {
         scheduler();
       }
     }
+    // scheduler();
   }
 }
 

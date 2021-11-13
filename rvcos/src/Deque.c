@@ -284,12 +284,9 @@ void tcb_push_back(volatile TCBArray *a, Thread element) {
 
 void mp_init(volatile MemoryPoolArray *a) {
   extern uint8_t _pool_size;
-  /* RVCMemoryAllocate(_pool_size / MIN_ALLOCATION_COUNT *
-                        sizeof(SMemoryPoolFreeChunk),
-                    (void **)&(a->chunks)); */
+  a->used = 1;
   RVCMemoryAllocate(1024, (void **)&(a->pools));
-  a->used = 0;
-  a->size = 256;
+  a->size = 1024;
 }
 
 void mp_push_back(volatile MemoryPoolArray *a, SMemoryPoolFreeChunk element) {

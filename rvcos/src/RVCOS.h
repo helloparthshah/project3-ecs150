@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define RVCOS_TICKS_MS 200
+#define RVCOS_TICKS_MS 5
 #define MIN_ALLOCATION_COUNT 0x40
 
 #define RVCOS_STATUS_FAILURE ((TStatus)0x00)
@@ -58,9 +58,18 @@ typedef TThreadReturn (*TThreadEntry)(void *);
   TMemorySize DStructureSize;
   freeNodeRef DFirstFree;
 } allocStruct, *allocStructRef; */
+typedef struct Chunk chunk, *chunkRef;
+
+struct Chunk {
+  /* chunk *next;
+  chunk *prev; */
+  void *ptr;
+  int size;
+};
 
 typedef struct {
   uint32_t id;
+  // chunk nodes[1024];
   int DSize;
   int Used;
   void *DBase;

@@ -83,3 +83,60 @@ uint32_t c_syscall_handler(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3,
   }
   return status;
 }
+
+
+/* 
+Pallette collection of colors (256 values) which is 32 bits ARGB
+And each pixel is a value from the pallette
+
+Alpha is opacity 0 to 255
+RGB need to pre multiplied by a alpha value for transparency
+
+3 types:
+4 Bgs 512x288
+64 large sprites 33x33
+small sprites 1x1 to 16x16
+
+8 Layers could be draw
+bgs and small on any layer
+large only on layer 4
+
+Could be put anywhere on the screen
+
+Each sprites and bgs have data sections and control blocks
+
+4 palettes for bg and 4 for sprites
+
+For update activated->pending->changes->activated
+
+We set one bit to change mode
+Last address in the video controller section
+BLock it until the mode changes
+
+Upcall- Get a call back once the create and activate 
+Once per interrupt once stuff is completed
+Above high priority
+Upcall has thread id invalid
+
+Create- Making space for offscreen buffer
+
+Delete- deletes the offscreen buffer
+
+Activate-  Upper left corner can be negative to be offscreen
+
+Draw- Draws the pixels
+
+Pallette create- allocates the 245B 
+Data structure to track which graphics are currently using
+
+Update- updates the colors
+Default pallette provided
+
+Extra credit
+support for 8 pallettes
+track dirty buffers- between activation and draw did you update the buffer
+Use dma to move data around.
+2 dma channels we could use 
+32 bits per cycle
+ld and store take 2 cycles
+ */

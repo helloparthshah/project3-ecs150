@@ -7,14 +7,12 @@
 extern volatile MemoryPoolArray memory_pool_array;
 
 typedef struct nodesList node, *nodeRef;
-typedef struct Chunk chunk, *chunkRef;
+// typedef struct Chunk chunk, *chunkRef;
 
-struct Chunk {
-  /* chunk *next;
-  chunk *prev; */
+/* struct Chunk {
   void *ptr;
   int size;
-};
+}; */
 
 struct nodesList {
   // chunk *head, *tail;
@@ -72,19 +70,24 @@ extern uint8_t _heap_base;
 void writei(int, int);
 
 void initSystemPool() {
-  // d->mPoolID = p;
-  // free(p);
+  pushNode(&freeNodesList, &_heap_base, &_pool_size);
+  // void *p = malloc(&_pool_size);
   mp_init(&memory_pool_array);
-  mp_push_back(&memory_pool_array, (SMemoryPoolFreeChunk){
+  memory_pool_array.pools[0] = (SMemoryPoolFreeChunk){
+      .DBase = &_heap_base,
+      .DSize = &_pool_size,
+      .Used = 0,
+      .id = memory_pool_array.used,
+  };
+  /* mp_push_back(&memory_pool_array, (SMemoryPoolFreeChunk){
                                        .DBase = &_heap_base,
                                        .DSize = &_pool_size,
                                        .Used = 0,
                                        .id = memory_pool_array.used,
-                                   });
+                                   }); */
 
   // RVCMemoryAllocate(sizeof(node), (void **)&freeNodesList);
   // freeNodesList->head = freeNodesList->tail = NULL;
-  pushNode(&freeNodesList, &_heap_base, &_pool_size);
 }
 
 /* void *Alloc() {
@@ -111,25 +114,15 @@ TStatus RVCMemoryPoolCreate(void *base, TMemorySize size,
   if (base == NULL || size == 0 || memoryref == NULL)
     return RVCOS_STATUS_ERROR_INVALID_PARAMETER;
   chunk c = freeNodesList.nodes[0];
-  freeNodesList.nodes[0] = (chunk){.ptr = NULL, .size = 0};
-  freeNodesList.used--;
-  /* for (int i = 0; i < freeNodesList.size; i++) {
-    if (freeNodesList.nodes[i].ptr >= base &&
-        freeNodesList.nodes[i].ptr <= (void *)((uint8_t *)base + size)) {
-      c = freeNodesList.nodes[i];
-      for (int j = i; j < freeNodesList.size - 1; j++) {
-        freeNodesList.nodes[j] = freeNodesList.nodes[j + 1];
-      }
-      freeNodesList.size--;
-      break;
-    }
-  } */
-  writei(c.size, 20);
+  if (c.size != size) {
+    freeNodesList.nodes[0] = (chunk){.ptr = NULL, .size = 0};
+    freeNodesList.used--;
+    pushNode(&freeNodesList, c.ptr, base - c.ptr);
+    pushNode(&freeNodesList, base + size, c.size - size - (base - c.ptr));
+  }
 
-  // pushNode(&allocNodesList, base, size);
+  // writei(c.size, 20);
 
-  pushNode(&freeNodesList, c.ptr, base - c.ptr);
-  pushNode(&freeNodesList, base + size, c.size - size - (base - c.ptr));
   // Creating the memory pool and pushing into array
   *memoryref = memory_pool_array.used;
   mp_push_back(&memory_pool_array, (SMemoryPoolFreeChunk){
@@ -180,6 +173,7 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
     *pointer = memory_pool_array.pools[memory].DBase;
     memory_pool_array.pools[memory].DBase =
         (void *)((uint8_t *)memory_pool_array.pools[memory].DBase + size);
+
     /* for (int i = 0; i < allocNodesList.size; i++) {
       if (allocNodesList.nodes[i].ptr >=
               memory_pool_array.pools[memory].DBase &&
@@ -200,7 +194,9 @@ TStatus RVCMemoryPoolAllocate(TMemoryPoolID memory, TMemorySize size,
 TStatus RVCMemoryPoolDeallocate(TMemoryPoolID memory, void *pointer) {
   // frees the memory
   memory_pool_array.pools[memory].Used = 0;
-  free(pointer);
+  // free(pointer);
+  memory_pool_array.pools[memory].DBase--;
+  memory_pool_array.pools[memory].DSize++;
   pointer = memory_pool_array.pools[memory].DBase;
   // AllocStructDeallocate((allocStructRef)&freeChunks, pointer);
   return RVCOS_STATUS_SUCCESS;
