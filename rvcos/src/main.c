@@ -139,4 +139,19 @@ Use dma to move data around.
 2 dma channels we could use 
 32 bits per cycle
 ld and store take 2 cycles
+
+riscv sim/videocontroller.h -- chang eth ecode from c++ to c
+you can also have negative values in the x values, etc. -- think about it
+large sprites don't have a z -- they have a default layer number 4
+palettes are just 4 in a row - bg palettes and then sprite paletters -- 4 bytes a piece; then there is a mode contorller; last bit is a mode bit that you need to change
+doc/video.md -- read this doc! it has all the mem mapping
+you are really dealing with page management - off screen resources to on-screen resources; potentially using DMAs and stuff;
+
+map the right type of resources with other ones - and the optimizations would be more difficult; you could do the optimizations right away, but it is not recommended;
+
+updating the simulator - pull the repo again and compile again; :)
+riscv-sim directory has been updated
+you don't need to build the docker container, etc.
+extra credit suggested order -- do the DMAs last; keeping tab of dirty and clean is probably easiest;
+bookkeeping stuff; separating palettes is another thing to track; another set of resources that you need to allocate again;
  */
